@@ -39,6 +39,14 @@ public class TextBuffer private constructor(private val value: String) {
 
     public fun isBlank(): Boolean = value.isBlank()
 
+    /** The offset where the line containing [offset] begins. */
+    public fun lineStartOf(offset: Int): Int = lineIndex.lineStart(lineIndex.lineOf(offset))
+
+    /** The offset where the line containing [offset] ends, excluding its terminator. */
+    public fun lineEndOf(offset: Int): Int = lineIndex.lineEnd(lineIndex.lineOf(offset))
+
+    private val lineIndex: LineIndex by lazy(LazyThreadSafetyMode.NONE) { LineIndex.of(value) }
+
     public fun withEdit(edit: Edit): TextBuffer =
         if (edit.isNoOp(this)) this else TextBuffer(edit.applyTo(value))
 
