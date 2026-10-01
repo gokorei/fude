@@ -158,6 +158,33 @@ class MarkdownParserTest {
     }
 
     @Test
+    fun aFenceContainingEveryTroublingStringStaysLiteral() {
+        // The three things that break live-preview renderers: a nested fence marker,
+        // something that looks like a host dialect, and an image.
+        val text = "````markdown\n```\n[[Wikilink]] and {{mention}} and ![img](x.png)\n````"
+        val doc = parse(text)
+        val fence = assertIs<CodeFenceNode>(doc.blocks[0])
+        val content = fence.content(doc.text)
+
+        assertEquals(1, doc.blocks.size, "nothing inside the fence became a block")
+        assertTrue(fence.inlines.isEmpty(), "and nothing became an inline node")
+        assertTrue(content.contains("```"), "the nested fence marker is literal")
+        assertTrue(content.contains("[[Wikilink]]"), "the wikilink-looking string is literal")
+        assertTrue(content.contains("{{mention}}"), "the host-dialect string is literal")
+        assertTrue(content.contains("![img](x.png)"), "the image is literal")
+    }
+
+    @Test
+    fun aFenceWithAnInfoStringIsStillAFence() {
+        // "```markdown" opens a fence. Rejecting it because the language name is not
+        // blank turns a fenced block into a paragraph followed by a heading.
+        val doc = parse("```kotlin\nval x = 1\n```")
+        assertEquals(1, doc.blocks.size)
+        val fence = assertIs<CodeFenceNode>(doc.blocks[0])
+        assertEquals("kotlin", fence.info)
+    }
+
+    @Test
     fun anUnclosedFenceRunsToTheEndOfTheDocument() {
         val doc = parse("```\nstill code")
         val fence = assertIs<CodeFenceNode>(doc.blocks[0])
