@@ -30,6 +30,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api(project(":fude-core"))
             api(libs.compose.runtime)
             api(libs.compose.foundation)
             api(libs.compose.ui)
