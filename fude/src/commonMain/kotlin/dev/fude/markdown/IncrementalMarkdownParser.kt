@@ -100,7 +100,12 @@ public class IncrementalMarkdownParser(
         val delta = text.length - previous.text.length
         val editStart = edit.affectedRange.start.coerceIn(0, previous.text.length)
 
-        val firstAffected = previous.blocks.indexOfFirst { it.range.end > editStart }
+        // `>=`, not `>`: a deletion that starts exactly where one block ends also
+        // joins the block after it, so the block before the edit must be reparsed
+        // too. With `>`, deleting the blank line between two paragraphs reparsed
+        // from the *second* one's start and produced a document whose ranges no
+        // longer matched its text.
+        val firstAffected = previous.blocks.indexOfFirst { it.range.end >= editStart }
         if (firstAffected < 0) {
             // The edit landed after every block, e.g. an append. Reparse the tail.
             val boundary = previous.blocks.lastOrNull()?.range?.end ?: 0
@@ -619,6 +624,14 @@ public class IncrementalMarkdownParser(
         return -1
     }
 
+    /**
+     * Where the paragraph starting at [start] ends.
+     *
+     * Advances one line at a time rather than skipping every newline: a paragraph
+     * is terminated *by* a blank line, so stepping over consecutive newlines would
+     * step over the terminator and silently merge every paragraph in the document
+     * into one.
+     */
     private fun endOfParagraph(text: String, start: Int, end: Int): Int {
         var cursor = start
         while (cursor < end) {
@@ -631,9 +644,16 @@ public class IncrementalMarkdownParser(
                 isListMarker(line) != null ||
                 isBlockQuote(line)
             if (interrupts) break
-            cursor = skipNewline(text, lineEnd, end)
+            cursor = nextLineStart(text, lineEnd, end)
         }
         return cursor.coerceAtLeast(start + 1)
+    }
+
+    /** The offset just past the next newline after [from], or [end]. */
+    private fun nextLineStart(text: String, from: Int, end: Int): Int {
+        var i = from
+        while (i < end && text[i] != '\n') i++
+        return if (i < end) i + 1 else end
     }
 
     private fun endOfFence(text: String, start: Int, end: Int): Int {

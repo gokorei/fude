@@ -1,81 +1,32 @@
 package dev.fude.editor
 
-import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import dev.fude.core.EditorState as CoreEditorState
+import dev.fude.core.InlineRange
+import dev.fude.core.TextRange as CoreTextRange
+import dev.fude.core.replaceSelection
+import dev.fude.syntax.SyntaxExtension
 
 /**
  * Fude — a live-preview Markdown editor.
  *
  * The library edits a string it is given. Where that string comes from, where it
  * is stored, and what its lines *mean* are the host's business. That boundary is
- * the whole point, and it is what keeps the library free of any document model.
- *
- * Rendering is a pure function of [EditorState]. Nothing here rewrites the
- * user's Markdown: what they typed is the canonical value, and decoration is a
- * visual projection of it.
+ * the point, and it is what keeps Fude free of any document model.
  */
 public object Fude {
-    public const val VERSION: String = "0.1.0-spike"
+    public const val VERSION: String = "0.1.0"
 }
 
-/** An inclusive-exclusive character range in the document. */
-@Immutable
-public data class InlineRange(val start: Int, val end: Int) {
-    init {
-        require(start >= 0) { "start must be non-negative, was $start" }
-        require(end >= start) { "end ($end) must not precede start ($start)" }
-    }
-}
-
-/** Which side of the source/rendered toggle a block is currently showing. */
-public enum class BlockView {
-    /** The Markdown the user typed, undecorated. */
-    SOURCE,
-
-    /** The parsed result, decorated. */
-    RENDERED,
-}
-
-/** The block kinds Fude's Markdown parser produces. */
-public enum class BlockKind {
-    PARAGRAPH,
-    HEADING,
-    LIST,
-    LIST_ITEM,
-    BLOCK_QUOTE,
-    CODE_FENCE,
-    TABLE,
-    THEMATIC_BREAK,
-    FRONTMATTER,
-}
-
-/**
- * A block of the document.
- *
- * [range] covers the block's source text, markers included. [view] is per block
- * because a per-block toggle is the model worth copying: toggling one list must
- * not toggle the rest of the note.
- */
-@Immutable
-public data class Block(
-    val range: InlineRange,
-    val view: BlockView,
-    val kind: BlockKind?,
-)
-
-/** A styled run the renderer should draw, produced by a syntax extension. */
+/** A styled run, and optionally what happens when it is clicked. */
 @Immutable
 public data class Decoration(
     val range: InlineRange,
@@ -84,69 +35,48 @@ public data class Decoration(
 )
 
 /**
- * A host-supplied dialect extension.
- *
- * Fude ships Markdown. A host that needs `[[wikilinks]]` registers recognition
- * here rather than forking the parser, which is what keeps this a reusable
- * library rather than a Musubime component with a misleading name.
- */
-@Stable
-public interface SyntaxExtension {
-    /** A stable identifier, used in diagnostics and tests. */
-    public val id: String
-
-    /**
-     * Recognises this extension's syntax within [range].
-     *
-     * Called per frame, over the affected blocks only. Implementations must be
-     * pure: the same range must yield the same result for the same text.
-     */
-    public fun recognise(text: CharSequence, range: InlineRange): List<InlineRange>
-
-    /**
-     * Turns a recognised range into something to draw.
-     *
-     * Returning `null` means "recognised, but nothing to draw", which is how a
-     * host makes a marker subtle rather than invisible.
-     */
-    public fun render(range: InlineRange, text: CharSequence): Decoration?
-}
-
-/**
  * The document as plain text, plus where the caret is.
  *
- * Deliberately not a rich document model. Text plus selection is enough to make
- * rendering pure; anything richer would put a document model inside a Markdown
- * editor, which is the mistake this library exists to avoid.
+ * A thin observable shell over the pure [CoreEditorState] rather than a
+ * reimplementation of it. There is exactly one implementation of "what an edit
+ * does to a selection"; a second one is a second answer, and the two eventually
+ * disagree — usually in caret mapping, which is where the disagreement is hardest
+ * to see.
+ *
+ * [text] is the canonical value. Decoration is a projection of it and never
+ * rewrites it.
  */
 @Stable
-public class EditorState(
-    initialText: String = "",
-    initialSelection: TextRange = TextRange.Zero,
+public class EditorState private constructor(
+    initial: CoreEditorState,
 ) {
-    public var text: String by mutableStateOf(initialText)
-        private set
+    private val core = mutableStateOf(initial)
 
-    public var selection: TextRange by mutableStateOf(initialSelection)
-        private set
+    /** The pure state model, for hosts that want to reason about it directly. */
+    public val model: CoreEditorState get() = core.value
 
-    /** The document split into blocks, each with its own source/rendered toggle. */
-    public var blocks: List<Block> by mutableStateOf(emptyList())
-        internal set
+    public val text: String get() = core.value.text.text
 
-    /**
-     * Applies an edit.
-     *
-     * @throws IllegalArgumentException if [newSelection] falls outside [newText],
-     *   which would put the caret somewhere the user cannot see or fix.
-     */
-    public fun edit(newText: String, newSelection: TextRange = TextRange(newText.length)) {
-        require(newSelection.start >= 0) { "selection start must be non-negative: $newSelection" }
-        require(newSelection.end <= newText.length) {
-            "selection end ${newSelection.end} is outside a document of length ${newText.length}"
-        }
-        text = newText
-        selection = newSelection
+    public val selection: CoreTextRange get() = core.value.selection
+
+    public fun applyEdit(newText: String, newSelection: CoreTextRange) {
+        // Rebuild through the pure model so selection mapping stays in one place.
+        val rebuilt = core.value.replace(core.value.selection, "")
+        core.value = rebuilt.selectRange(newSelection.start, newSelection.end)
+            .let { CoreEditorState(dev.fude.core.TextBuffer.of(newText), it.selection, it.scroll) }
+    }
+
+    public fun moveCaretTo(offset: Int) {
+        core.value = core.value.moveCaretTo(offset)
+    }
+
+    public fun selectRange(start: Int, end: Int) {
+        core.value = core.value.selectRange(start, end)
+    }
+
+    public companion object {
+        public fun of(text: String, caret: Int = text.length): EditorState =
+            EditorState(CoreEditorState.of(text, caret))
     }
 }
 
@@ -154,20 +84,24 @@ public class EditorState(
 @Immutable
 public data class EditorConfig(
     val textStyle: TextStyle = TextStyle.Default,
-    val contentPadding: Dp = 8.dp,
+    val contentPadding: Dp = 12.dp,
     val maxLines: Int = Int.MAX_VALUE,
     val readOnly: Boolean = false,
     val placeholder: String? = null,
-    val layoutDirection: LayoutDirection = LayoutDirection.Ltr,
 )
 
 /**
  * A live-preview Markdown editor.
  *
+ * Rendering is a pure function of [state]: nothing here rewrites the user's
+ * Markdown, and toggling a block is a view change that leaves the text alone.
+ *
  * @param state the document and the caret. Owned by the caller, because the
  *   caller's persistence decides when and whether it is saved.
  * @param syntaxExtensions the host's dialect, applied after built-in Markdown.
  * @param onChange fired after every edit with the new text.
+ * @param onDecorationClick called when a decorated range is clicked. Resolution
+ *   is the host's: the library has no idea what a mention or a wikilink means.
  */
 @Composable
 public fun MarkdownEditor(
@@ -175,10 +109,9 @@ public fun MarkdownEditor(
     modifier: Modifier = Modifier,
     config: EditorConfig = EditorConfig(),
     syntaxExtensions: List<SyntaxExtension> = emptyList(),
-    inputTransformation: InputTransformation? = null,
     onChange: (String) -> Unit = {},
+    onDecorationClick: ((Decoration) -> Unit)? = null,
 ) {
-    // Sketch only. The spike established that Compose can decorate in place, and
-    // that decoration must be recomputed on every frame from a fresh buffer.
-    // Implementation lands in ticket 7W23JW59.
+    // The renderer lands in the next commit; the state, parser, extension point,
+    // toggle and layout layers are in place and tested headlessly.
 }
