@@ -59,11 +59,22 @@ public class EditorState private constructor(
 
     public val selection: CoreTextRange get() = core.value.selection
 
+    /**
+     * Replaces the document with [newText] and the caret with [newSelection].
+     *
+     * This is how the platform's text field reports what the user did: Compose
+     * owns the buffer during a gesture and reports the result, so the library
+     * applies the whole change rather than reconstructing individual edits from
+     * keystrokes. The trade is that IME composition cannot be reconstructed this
+     * way — see `ImeCommitter`, which records composition as one edit — and that
+     * undo groups by change rather than by keystroke.
+     *
+     * @throws IllegalArgumentException if [newSelection] falls outside [newText],
+     *   which would put the caret somewhere the user cannot see or fix.
+     */
     public fun applyEdit(newText: String, newSelection: CoreTextRange) {
-        // Rebuild through the pure model so selection mapping stays in one place.
-        val rebuilt = core.value.replace(core.value.selection, "")
-        core.value = rebuilt.selectRange(newSelection.start, newSelection.end)
-            .let { CoreEditorState(dev.fude.core.TextBuffer.of(newText), it.selection, it.scroll) }
+        val candidate = CoreEditorState.of(newText, newSelection.start.coerceIn(0, newText.length))
+        core.value = candidate.selectRange(newSelection.start, newSelection.end)
     }
 
     public fun moveCaretTo(offset: Int) {
