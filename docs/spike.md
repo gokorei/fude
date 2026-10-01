@@ -1,0 +1,315 @@
+# Spike: the text-input foundation
+
+Ticket `78WDKZQ8`. This is the gate for the whole library: the rest of Fude is
+weeks of work if the foundation holds and months if it does not, so it was
+measured rather than assumed.
+
+Every number below came out of a test in this repository. `./gradlew :fude:jvmTest`
+runs them all. Where something could not be measured on this machine, that is
+said explicitly instead of being guessed at.
+
+## The short version
+
+**Compose `BasicTextField` + `TextFieldState`, with decoration computed per
+frame. Candidate B is dead. Candidate C is rejected on evidence rather than on
+taste.**
+
+The foundation holds, but not in the shape the brief assumed. The load-bearing
+discovery is in "The finding that matters" below: decoration is recomputed from
+scratch every frame, which is what makes incremental reparse a hard requirement
+rather than an optimisation.
+
+---
+
+## What was built to find this out
+
+- `:fude` — the library. JVM and Android targets, both building.
+- `fude/src/commonMain/.../FudeApi.kt` — the public API sketch, compiling.
+- `fude/src/commonMain/.../spike/SpikeDocument.kt` — one fixture, used by every
+  candidate, so no candidate gets an easier document than another.
+- `fude/src/commonTest/.../spike/ParserProbe.kt` and
+  `fude/src/jvmTest/.../spike/*Probe.kt` — the measurements.
+
+The fixture is 5,047 lines and 225,632 characters, containing nested lists,
+tables with inline formatting, fenced code holding fence-like and wikilink-like
+text, emoji with ZWJ sequences, combining marks, CJK, RTL, and a bold run with
+the caret placed inside it.
+
+## The finding that matters
+
+**`OutputTransformation` receives a fresh `TextFieldBuffer` on every frame.**
+
+`PROBE distinctBuffers=2 of 2` — after one keystroke, the buffer is a different
+object than the one before it. This is not an implementation detail to work
+around; it dictates the architecture:
+
+- A `TrackedRange` handle cannot be held across frames. Holding one and letting
+  Compose maintain it produced **no spans at all** after the first edit
+  (`PROBE tracked.insertInside spans=` — empty), because the range lived in a
+  buffer that no longer exists.
+- Therefore decoration **must** be recomputed from the text on every frame.
+- Therefore reparse must be bounded to the affected blocks. Recomputing a full
+  parse of 5,000 lines per keystroke is not affordable.
+
+The brief predicted this — "the reparse must be bounded to the affected block" —
+but treated it as a performance concern. It is a correctness constraint: there is
+no incremental mechanism available to lean on, so incremental reparse is the only
+design that works.
+
+### What decoration can and cannot do
+
+| Capability | Result |
+|---|---|
+| Style a range in place, leaving the source text untouched | **Works.** `PROBE sourceText=[**caret** tail] (must be unchanged)` |
+| Style bold and italic side by side on one buffer | **Works.** `spans=0..9:w=Bold, 10..14:i=Italic` |
+| Reach the rendered result | Via `onTextLayout` → `TextLayoutResult.layoutInput.text`. Semantics strip styling and **cannot** answer this — an early probe read empty spans from `SemanticsProperties.EditableText` and was wrong. |
+| Style ranges that follow the text they decorate | **Does not work.** See above. |
+| Type into the live buffer | **Works.** `PROBE afterTyping text=[abcdef]` |
+
+### Caret across a syntax boundary
+
+Caret movement is plain-text selection on the underlying buffer, and styles are
+drawn on top. The caret never lands on a marker, because markers are characters
+in the source like any other and the caret moves by character index.
+
+The fixture places the caret inside `**caret**` (`PROBE caretOffset=281`,
+asserted in `SpikeDocumentTest`). What is *not* proven here is visual caret
+placement inside decorated output, which needs a rendered frame and a real
+device. That belongs to `N6HD7YYT`, not to this ticket.
+
+## Measurements
+
+### Undo grouping — passes, better than expected
+
+| Case | Result |
+|---|---|
+| 5 characters typed | **1** undo step |
+| `"hello"` + `" "` + `"world"` | **1** undo step to empty |
+
+Compose's `EditProcessor` coalesces input into a single undo unit, including
+across the space. The word-boundary concern the brief raised — "a space must not
+break the run, or hello world undoes as three words" — does not arise here. This
+is tested in `UndoProbe`, so it will fail loudly if a future version regresses it.
+
+### Large-document cost — the number to watch
+
+One keystroke into the 5,047-line fixture, desktop JVM, cold measurement inside
+a Compose UI test:
+
+| Case | Time |
+|---|---|
+| Plain `BasicTextField`, no decoration | **116 ms** |
+| Same field, per-frame decoration reparse | **196 ms** |
+
+Two things follow, and the second is the important one:
+
+1. Neither number is near 16 ms. A naive full relayout per keystroke will not
+   hold 60fps on this fixture, which confirms the brief's concern.
+2. The **80 ms delta** is the cost of Fude's own decoration pass — a trivial
+   `indexOf` scan for `**` pairs, not a real parse. A real parse will cost more.
+   The budget for decoration is therefore small and must be spent carefully.
+
+These are single cold measurements without warm-up, so treat them as order-of-
+magnitude, not as a benchmark. Re-measure with warm-up before sizing the
+incremental-reparse budget in `7W23JW59`.
+
+## Candidates
+
+### A — Compose `BasicTextField` / `TextFieldState`: **chosen**
+
+Chosen on the evidence above. Inline styling works, the source text is untouched,
+undo grouping is correct, and typing lands in a live buffer the host controls.
+
+Costs, stated plainly:
+
+- Decoration must be recomputed per frame (above). Incremental reparse is
+  mandatory, not optional.
+- `TrackedRange` is unusable across frames.
+- Layout of a large document per keystroke is ~116 ms as measured; this needs
+  block-bounded layout or a viewport strategy.
+- `addStyle` is gated behind `ComposeFoundationFlags.isBasicTextFieldStyledTextEnabled`
+  (`isBasicTextFieldStyledTextEnabled`), currently `true`, with a TODO to remove
+  the flag. If a future Compose release flips it, styling silently degrades. The
+  probe tests fail if it does.
+
+### B — `multiplatform-text-editor`: **rejected, it no longer exists**
+
+Not a judgement call — the artefact is gone.
+
+- `github.com/MobileNativeFoundation/multiplatform-text-editor` → **404**
+- `repo1.maven.org/maven2/com/mobilenativefoundation/` → **404**
+- `search.maven.org` for `a:multiplatform-text-editor` → **0 results**
+
+The library this ticket named cannot be evaluated. Its replacement for the same
+problem space is `jjrodcast/TextKit` (100 stars, active as of 2026-09-29), a
+rope-backed rich-text engine — but it targets *rich text with formatting spans*,
+not Markdown-source-with-live-preview, which is a different data model. Worth a
+look if Fude's requirements ever shift; not a substitute today.
+
+### C — Embedded web view per target: **rejected**
+
+The maturity argument for CodeMirror 6 is real, and it is the reason the earlier
+web plan de-risked this. It still loses, on three counts:
+
+1. **It abandons Compose entirely.** The value of choosing Candidate A is that
+   the editor is a Compose citizen — same layout, same theming, same state model
+   as the rest of the app. A web view is a foreign island inside a Compose tree,
+   and every theming, accessibility and IME fix has to be done twice.
+2. **WebView support is not uniform across the targets in scope.**
+   `kevinnzou/compose-webview-multiplatform` covers Android and iOS well;
+   desktop needs JCEF configured separately, and web targets need iframe work
+   with same-origin restrictions. Three different implementations, none of them
+   Compose.
+3. **It cannot satisfy the library's own boundary.** Fude is a *Compose*
+   library. A web view is not an editor widget; it is an embedded browser. The
+   API sketch could not be written in Compose terms, and the acceptance
+   criterion "the library's public API sketch exists as compilable code" would
+   fail.
+
+The honest counter-argument: CodeMirror 6 gets caret-across-boundary and IME
+right *today*, and Candidate A's remaining risk is exactly there. The spike's
+conclusion is that this risk is addressable — it is a reparse-bounding and
+layout-strategy problem, both of which are ordinary engineering, and neither of
+which changes the API. If `7W23JW59` cannot make caret movement feel plain, this
+decision should be revisited rather than defended.
+
+## Parser decision
+
+**`org.jetbrains:markdown:0.7.16`, GFM flavour.** Verified working from
+`commonTest` (`ParserProbe`), not assumed.
+
+- **Multiplatform.** Its Gradle metadata publishes `native` (iOS arm64/x64/
+  simulator, linux), `js`, and `jvm` variants. The alternative, commonmark-java
+  0.30.0, publishes a plain JVM jar only — unusable in a KMP library, as the
+  brief anticipated.
+- **Block-level AST with source offsets.** Every `ASTNode` carries
+  `startOffset`/`endOffset` into the original text (`PROBE rootType=MARKDOWN_FILE
+  [0..225632)`). That is what makes a decoration range trustworthy, and what lets
+  a host map a parse result back to a caret position.
+- **GFM, not strict CommonMark.** Live preview has to render tables,
+  strikethrough and task lists to be useful. CommonMark has none of them. This is
+  a deliberate deviation from strict compliance and is recorded here so it is not
+  mistaken for an oversight.
+- **Fenced code is respected.** `PROBE fencedTypes=[ATX_1, ..., CODE_FENCE,
+  CODE_FENCE_CONTENT, CODE_FENCE_END]` — the `# fake` and `[[not a link]]` inside
+  the fence produced no heading and no link node. Correct.
+
+### Wikilinks
+
+**The parser does not know about wikilinks, and should not.** `[[Wikilink]]`
+parses as `SHORT_REFERENCE_LINK` → `LINK_LABEL` — i.e. as a broken CommonMark
+reference link. Fude never sees this, because wikilink recognition happens in
+`SyntaxExtension.recognise`, above the parser, before decoration is computed.
+
+This is the extension point doing its job: Musubime registers a wikilink
+extension and gets `[[Note]]` → `DocId` resolution without Fude knowing that
+`DocId`, Opal, or wikilinks exist. Adding wikilinks to the parser instead would
+couple a reusable Markdown library to one host's dialect — the exact failure the
+project's design commitments forbid.
+
+The cost, stated honestly: a bare `[[Wikilink]]` is indistinguishable from a
+malformed reference link at the parser level, so an extension that wants to
+distinguish them must run before or alongside the parse rather than after it.
+Worth pinning down in `X3AC8MWZ`.
+
+## Public API
+
+`fude/src/commonMain/kotlin/dev/fude/editor/FudeApi.kt` compiles. Shape:
+
+```kotlin
+@Composable
+fun MarkdownEditor(
+    state: EditorState,
+    modifier: Modifier = Modifier,
+    config: EditorConfig = EditorConfig(),
+    syntaxExtensions: List<SyntaxExtension> = emptyList(),
+    inputTransformation: InputTransformation? = null,
+    onChange: (String) -> Unit = {},
+)
+```
+
+`EditorState` holds text, selection, and per-block view — and nothing else. No
+network, no persistence, no document model, no Opal. `MarkdownEditor` returns
+`Unit`: rendering is a pure function of state, so there is nothing for a caller
+to hold that the state does not already hold.
+
+## Acceptance criteria
+
+| Criterion | Status |
+|---|---|
+| Written comparison of three approaches on the same document | Done — `docs/spike.md` |
+| Caret/selection fidelity measured | Partly. Plain-text selection and caret-offset correctness measured; visual caret placement in rendered output not, needs a device. |
+| Unicode and IME behaviour measured | Partly. Fixture covers emoji ZWJ, combining marks, CJK, RTL. **Composition (IME) not tested** — see below. |
+| Undo/redo grouping measured | Done — 1 step for a word, 1 step for a word + space + word |
+| Large-document performance measured | Done — 116 ms plain, 196 ms decorated, cold, single run |
+| Clear recommendation, with what was rejected and why | Done |
+| Parser decided, CommonMark compliance and wikilink extension noted | Done — GFM, with the deviation recorded |
+| Stack verified on every target in scope | **Partly.** JVM and Android verified building. iOS, JS and Wasm declared but **not compiled** — see below. |
+| Public API sketch compiles | Done |
+| Negative outcome recorded rather than worked around | B was dead; recorded as rejected, not substituted quietly |
+
+## Gaps, stated rather than buried
+
+Four things this spike did **not** establish. They are the honest cost of
+running on a machine without Xcode.
+
+1. **iOS was never compiled.** Only the Xcode Command Line Tools are installed
+   (`xcodebuild` refuses to run). The iOS target is not declared in
+   `fude/build.gradle.kts` at all. This is the most significant gap: iOS is where
+   `BasicTextField` is least mature, and where native text input matters most.
+   **Compose 1.11.1 added an opt-in native iOS text input**
+   (`PlatformImeOptions.usingNativeTextInput(true)`) which is exactly the
+   behaviour Candidate B was meant to provide, now available in Candidate A.
+   That should be evaluated before `7W23JW59` starts.
+2. **IME composition was not tested.** Composition needs a live platform IME.
+   Compose exposes `TextFieldBuffer.composition` and
+   `AnnotatedString.Range` annotations for it, so the API exists, but "does
+   composition text survive decoration" is unanswered. Given the CJK weak spot
+   already noted in Opal's search, this must not be skipped. Needs a real CJK
+   input source.
+3. **Clipboard round-trip was not tested**, including the reported Compose bug
+   where paste strips formatting.
+4. **Web (JS/Wasm) and native targets are not declared.** Only JVM and Android.
+
+## Recommendation
+
+Proceed with Candidate A. Concretely:
+
+1. Declare iOS targets and build them on a machine with Xcode **before**
+   `7W23JW59` starts. If the iOS target does not compile, the decision changes.
+2. Evaluate `usingNativeTextInput(true)` for iOS as part of that build — it may
+   remove the need for anything Candidate B was to have provided.
+3. Treat block-bounded reparse as a design requirement, not an optimisation. The
+   per-frame-fresh-buffer finding makes it the only design that works, and the
+   80 ms decoration delta is the budget it has to fit in.
+4. Write the IME composition test with a real CJK input source, and the clipboard
+   test with rich text, before considering `N6HD7YYT` done.
+
+## Toolchain notes
+
+Recorded because they cost time and will cost it again:
+
+- Kotlin 2.3.21, Compose Multiplatform 1.12.1, AGP 9.4.1, Gradle 9.8.0.
+- AGP 9 requires `com.android.kotlin.multiplatform.library`, **not**
+  `com.android.library`. The old plugin is rejected outright alongside
+  `kotlin-multiplatform`.
+- Compose 1.12.1's Android artifacts require `compileSdk 37` **and** AGP 9.1+.
+- `org.jetbrains.compose.material3:material3:1.12.1` **does not exist** — the
+  Material3 artifact is versioned separately and lags at `1.12.0-alpha03`. The
+  spike avoids Material3.
+- Desktop Compose tests need an explicit
+  `runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-macos-arm64")`, or
+  `org.jetbrains.skia.Surface` fails to initialise with a bare
+  `ExceptionInInitializerError` that says nothing useful.
+
+## Reproducing
+
+```
+./gradlew build          # compiles both targets, runs all tests
+./gradlew :fude:jvmTest  # the probes, with their output
+```
+
+Probe output is printed, not asserted, because several probes report timing,
+which is not a pass/fail condition. The assertions that *are* pass/fail —
+fixture invariants, undo step counts, parser structure, `EditorState` rejecting
+an impossible selection — will fail the build if they break.
