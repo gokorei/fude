@@ -82,12 +82,9 @@ public class UndoGrouping(
         val lastEnd = previous.affectedRange.start + previous.text.length
         if (incoming.offset != lastEnd) return false
 
-        // A structural character ends the run. A space does not — see above.
+        // A structural character ends the run. A space does not — see above: the
+        // whole point is that "hello world" is one step, not three.
         if (incoming.text.any { it.isBoundary() }) return false
-
-        // Typing after a whitespace-terminated character is a new word, and a new
-        // word is a new undo step.
-        if (previous.text.lastOrNull()?.isWhitespace() == true) return false
 
         if (millisSincePreviousEdit != Long.MAX_VALUE && millisSincePreviousEdit > idleTimeoutMillis) {
             return false

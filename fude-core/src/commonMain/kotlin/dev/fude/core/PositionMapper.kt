@@ -62,13 +62,13 @@ public class LineIndex private constructor(private val starts: IntArray, val len
      */
     public fun lineEnd(line: Int, endInclusive: Boolean = false): Int {
         val index = line.coerceIn(0, starts.size - 1)
-        val nextStart = if (index + 1 < starts.size) starts[index + 1] else length
-        if (!endInclusive) {
-            // Step back over the terminator, which is one character unless the
-            // line ended with a CR that was normalised away upstream.
-            return if (nextStart > starts[index]) nextStart - 1 else nextStart
-        }
-        return nextStart.coerceAtMost(length)
+        val isLast = index + 1 >= starts.size
+        val nextStart = if (isLast) length else starts[index + 1]
+        if (endInclusive) return nextStart.coerceAtMost(length)
+        // Step back over the terminator. The last line has none, so subtracting
+        // there would silently drop a real character — which is how an offset at
+        // the very end of a document stopped round-tripping.
+        return if (isLast) nextStart else nextStart - 1
     }
 
     /** The line containing [offset]. */
@@ -133,8 +133,10 @@ public class PositionMapper(
         if (breaks.isNullOrEmpty()) {
             return TextPosition(clamped, line, column, line, column)
         }
+        // A wrap point is the offset at which the next display line begins, so an
+        // offset sitting exactly on one has already wrapped.
         val visualIndex = breaks.count { it <= clamped }
-        val visualStart = if (visualIndex == 0) 0 else breaks[visualIndex - 1] + 1
+        val visualStart = if (visualIndex == 0) 0 else breaks[visualIndex - 1]
         return TextPosition(clamped, line, column, line + visualIndex, clamped - visualStart)
     }
 
