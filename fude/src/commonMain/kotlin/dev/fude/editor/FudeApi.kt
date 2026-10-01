@@ -89,29 +89,3 @@ public data class EditorConfig(
     val readOnly: Boolean = false,
     val placeholder: String? = null,
 )
-
-/**
- * A live-preview Markdown editor.
- *
- * Rendering is a pure function of [state]: nothing here rewrites the user's
- * Markdown, and toggling a block is a view change that leaves the text alone.
- *
- * @param state the document and the caret. Owned by the caller, because the
- *   caller's persistence decides when and whether it is saved.
- * @param syntaxExtensions the host's dialect, applied after built-in Markdown.
- * @param onChange fired after every edit with the new text.
- * @param onDecorationClick called when a decorated range is clicked. Resolution
- *   is the host's: the library has no idea what a mention or a wikilink means.
- */
-@Composable
-public fun MarkdownEditor(
-    state: EditorState,
-    modifier: Modifier = Modifier,
-    config: EditorConfig = EditorConfig(),
-    syntaxExtensions: List<SyntaxExtension> = emptyList(),
-    onChange: (String) -> Unit = {},
-    onDecorationClick: ((Decoration) -> Unit)? = null,
-) {
-    // The renderer lands in the next commit; the state, parser, extension point,
-    // toggle and layout layers are in place and tested headlessly.
-}

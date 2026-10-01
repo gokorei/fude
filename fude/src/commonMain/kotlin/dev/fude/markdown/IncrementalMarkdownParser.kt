@@ -849,6 +849,9 @@ public data class ParsedDocument(
         return block.range.start
     }
 
+    /** The whole document's extent, for a host extension scanning everything. */
+    public fun contentRange(): InlineRange = InlineRange(0, text.length)
+
     /** The block whose range contains [range]. */
     public fun blockContaining(range: InlineRange): BlockNode? =
         blocks.firstOrNull { range.start >= it.range.start && range.end <= it.range.end }
