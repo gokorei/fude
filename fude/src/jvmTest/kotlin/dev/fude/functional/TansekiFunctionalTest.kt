@@ -294,15 +294,6 @@ class TansekiFunctionalTest {
     }
 
     @Test
-    @Ignore(
-        "DEFECT: replacing the field's text leaves the previous selection in place, and " +
-            "EditorState.applyEdit then throws IllegalArgumentException because the stale " +
-            "selection is out of range for the new text. Observed: selection 173-181 against " +
-            "a 51-character replacement. This is reachable by any host loading a new document " +
-            "into the editor (MarkdownEditor's LaunchedEffect(state.text) replaces the text " +
-            "without resetting the selection) and by a user pasting over a select-all. " +
-            "Remove @Ignore once fixed.",
-    )
     fun replacingTheFieldRoundTripsThroughTheWholePipeline() {
         val text = fetch("blocks")
         val state = EditorState.of(text)

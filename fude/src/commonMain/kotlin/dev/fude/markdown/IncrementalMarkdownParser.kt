@@ -90,6 +90,16 @@ public class IncrementalMarkdownParser(
      * or fewer blocks, and the shifted tail is dropped when the reparse ran past it.
      * That is the fallback path, and it is correct rather than fast: a structural
      * edit genuinely may invalidate everything below it.
+     *
+     * **The tail may only be reused when the shift actually lands it in the new
+     * document.** [shifted] clamps at zero, so a shift larger than the distance to
+     * the document's start silently collapses a block to `(0, 0)` instead of
+     * reporting that it no longer fits — and a replacement that shrinks the text by
+     * more than one block is exactly that shift. Reusing it then loses the whole
+     * tail: the caller gets an in-range tree covering a fraction of the text, with
+     * everything after the first block no longer recognised as Markdown. So the
+     * check below falls back to a full parse, which is correct and costs a full
+     * parse only for edits that genuinely need one.
      */
     public fun reparse(text: String, edit: dev.fude.core.Edit): ParsedDocument {
         if (text == cached.text) return cached
@@ -109,6 +119,10 @@ public class IncrementalMarkdownParser(
         if (firstAffected < 0) {
             // The edit landed after every block, e.g. an append. Reparse the tail.
             val boundary = previous.blocks.lastOrNull()?.range?.end ?: 0
+            // Blocks before the edit are reused untouched, so they are only valid
+            // while they still fit. A document that shrank past them has not left
+            // the earlier blocks alone, whatever the edit claims.
+            if (boundary > text.length) return parse(text)
             val reparsedTail = parseBlocks(text, boundary, text.length)
             counter.recordBlockParse()
             val document = ParsedDocument(text, previous.blocks + reparsedTail)
@@ -116,16 +130,31 @@ public class IncrementalMarkdownParser(
             return document
         }
 
+        val reusableTail = previous.blocks.drop(firstAffected + 1)
+        if (!tailSurvivesShift(reusableTail, delta, text.length)) return parse(text)
+
         val boundary = previous.blocks[firstAffected].range.start
-        val shiftedTail = previous.blocks.drop(firstAffected + 1).map { shiftBlock(it, delta) }
+        val shiftedTail = reusableTail.map { shiftBlock(it, delta) }
 
         // Reparse forward until we have covered the old affected block's extent.
         val targetEnd = (previous.blocks[firstAffected].range.end + delta).coerceIn(0, text.length)
         val reparsed = mutableListOf<BlockNode>()
         var cursor = boundary
 
-        while (cursor < text.length) {
-            val (block, next) = parseOneBlock(text, cursor, text.length)
+        // Stop at the last non-whitespace character, not at `text.length`.
+        //
+        // `parseBlocks` is written to always yield one block so the renderer has
+        // something to lay out, which is right when it is descending into a block's
+        // content and wrong at the document's own tail: a document ending in a
+        // newline has a final "\n" that is not a block. Entering it here
+        // synthesises an empty paragraph covering that one character, so an
+        // incremental parse grows a phantom block at the end that a full parse does
+        // not produce — and `blockAt`, `blockStarts` and the layout cache then all
+        // see a block the document does not contain.
+        val contentEnd = text.indexOfLast { !it.isWhitespace() } + 1
+
+        while (cursor < contentEnd) {
+            val (block, next) = parseOneBlock(text, cursor, contentEnd)
             counter.recordBlockParse()
             if (next <= cursor) break
             reparsed += block
@@ -148,6 +177,20 @@ public class IncrementalMarkdownParser(
     }
 
     /**
+     * Whether shifting [tail] by [delta] lands every one of its ranges inside a
+     * document of [textLength] characters, with no clamping.
+     *
+     * The check is on the top-level block ranges only. A descendant cannot reach
+     * further than its ancestor — the parser only ever builds children within their
+     * parent's extent — so if the parent shifts cleanly the children do too.
+     */
+    private fun tailSurvivesShift(
+        tail: List<BlockNode>,
+        delta: Int,
+        textLength: Int,
+    ): Boolean = tail.all { it.range.start + delta >= 0 && it.range.end + delta <= textLength }
+
+    /**
      * Parses the single block starting at [start].
      *
      * @return the block and the offset the next block begins at.
@@ -167,20 +210,55 @@ public class IncrementalMarkdownParser(
     private fun blankNode(start: Int, end: Int): BlockNode =
         ParagraphNode(InlineRange(start, maxOf(end, start)), emptyList())
 
-    /** Shifts a block and its descendants by [by], without re-parsing them. */
+    /**
+     * Shifts a block and its descendants by [by], without re-parsing them.
+     *
+     * Inline ranges are shifted too, and that is the part that is easy to forget:
+     * the renderer decorates from `block.inlines`, not from `block.range`. Moving
+     * only the block range leaves every span below the edit pointing at the
+     * document's previous coordinates, which decorates the wrong characters and
+     * stays silent — no exception, just bold applied one character off, and getting
+     * more wrong the further down the document you look.
+     */
     private fun shiftBlock(node: BlockNode, by: Int): BlockNode = when (node) {
-        is ParagraphNode -> node.copy(range = node.range.shifted(by))
-        is HeadingNode -> node.copy(range = node.range.shifted(by))
+        is ParagraphNode -> node.copy(range = node.range.shifted(by), inlines = shiftInlines(node.inlines, by))
+        is HeadingNode -> node.copy(range = node.range.shifted(by), inlines = shiftInlines(node.inlines, by))
         is ListNode -> node.copy(range = node.range.shifted(by), children = node.children.map { shiftBlock(it, by) })
-        is ListItemNode -> node.copy(range = node.range.shifted(by), children = node.children.map { shiftBlock(it, by) })
+        is ListItemNode -> node.copy(
+            range = node.range.shifted(by),
+            children = node.children.map { shiftBlock(it, by) },
+            inlines = shiftInlines(node.inlines, by),
+        )
         is BlockQuoteNode -> node.copy(range = node.range.shifted(by), children = node.children.map { shiftBlock(it, by) })
         is CodeFenceNode -> node.copy(range = node.range.shifted(by), contentRange = node.contentRange.shifted(by))
         is TableNode -> node.copy(range = node.range.shifted(by), children = node.children.map { shiftBlock(it, by) })
         is TableRowNode -> node.copy(range = node.range.shifted(by), cells = node.cells.map { shiftBlock(it, by) as TableCellNode })
-        is TableCellNode -> node.copy(range = node.range.shifted(by))
+        is TableCellNode -> node.copy(range = node.range.shifted(by), inlines = shiftInlines(node.inlines, by))
         is ThematicBreakNode -> node.copy(range = node.range.shifted(by))
-        is HostBlockNode -> node.copy(range = node.range.shifted(by))
+        is HostBlockNode -> node.copy(range = node.range.shifted(by), inlines = shiftInlines(node.inlines, by))
     }
+
+    /** Shifts an inline run by [by], including the ranges a link holds separately. */
+    private fun shiftInlines(inlines: List<InlineNode>, by: Int): List<InlineNode> =
+        inlines.map { inline ->
+            when (inline) {
+                is TextNode -> inline.copy(range = inline.range.shifted(by))
+                is CodeSpanNode -> inline.copy(range = inline.range.shifted(by))
+                // The label is a range in its own right: rendering shows the label,
+                // so shifting the link's full range alone would put the underline on
+                // the destination's coordinates.
+                is LinkNode -> inline.copy(
+                    range = inline.range.shifted(by),
+                    labelRange = inline.labelRange.shifted(by),
+                )
+                is ImageNode -> inline.copy(range = inline.range.shifted(by))
+                is HostInlineNode -> inline.copy(range = inline.range.shifted(by))
+                is EmphasisNode -> inline.copy(
+                    range = inline.range.shifted(by),
+                    children = shiftInlines(inline.children, by),
+                )
+            }
+        }
 
     /** Parses [text] between [start] and [end] into top-level blocks. */
     private fun parseBlocks(text: String, start: Int, end: Int): List<BlockNode> {

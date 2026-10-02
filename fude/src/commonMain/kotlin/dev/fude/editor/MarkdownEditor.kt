@@ -51,6 +51,17 @@ import dev.fude.syntax.SyntaxExtension
  *    ~76 ms on top. Both are measured in `KeystrokeBudgetTest`. Neither is near a
  *    frame, which is why [LayoutCache] exists and why block-bounded reparse is a
  *    correctness requirement rather than an optimisation.
+ *
+ * **Where the caret goes when the document changes.**
+ *
+ * Wherever the host puts it, because only the host knows. Loading a note is
+ * `remember { EditorState.of(markdown) }` producing a new state, and `of` puts the
+ * caret at the end of the document; a host that wants it at the top, or at a stored
+ * scroll position, passes `caret` and gets that. This composable never invents a
+ * caret position, and in particular never keeps the old one — "the caret jumped to
+ * the top when I opened a note" and "the caret stayed where I left it in another
+ * note" are both user-visible behaviour that has to be chosen, not inherited by
+ * accident from whatever the previous document happened to leave behind.
  */
 @Composable
 public fun MarkdownEditor(
@@ -165,6 +176,19 @@ private fun applyDecoration(
 ) {
     val text: String = buffer.originalText.toString()
 
+    // The parse must describe *this* buffer.
+    //
+    // `OutputTransformation` runs during layout, while the parse is refreshed by a
+    // `LaunchedEffect` that can only run once the frame is being applied. So on the
+    // first frame after the buffer's text changes, the parse is still the previous
+    // document's. When the new text is shorter the old tree's ranges point past the
+    // end of the buffer, and `addStyle` throws — a crash on the commonest editor
+    // path there is, a host loading a document.
+    //
+    // Comparing lengths first keeps the mismatch case O(1). The full comparison only
+    // runs once the lengths already agree, which is the frame-to-frame case.
+    if (parsed.text.length != text.length || parsed.text != text) return
+
     for (block in parsed.blocks) {
         // A block showing source is deliberately left undecorated: the user is
         // editing Markdown and wants to see it as written.
@@ -194,7 +218,7 @@ private fun decorateBlock(
         is CodeFenceNode -> {
             // Opaque by construction. Nothing inside a fence is parsed, so nothing
             // inside it can be decorated as Markdown — which is exactly the point.
-            buffer.addStyle(SpanStyle(color = Color(0xFF6A9955)), block.range.start, block.range.end)
+            addStyle(buffer, block.range, SpanStyle(color = Color(0xFF6A9955)))
         }
 
         else -> {
@@ -211,36 +235,61 @@ private fun decorateInline(
 ) {
     when (inline) {
         is EmphasisNode -> {
-            buffer.addStyle(
+            addStyle(
+                buffer,
+                inline.range,
                 if (inline.strong) {
                     SpanStyle(fontWeight = FontWeight.Bold)
                 } else {
                     SpanStyle(fontStyle = FontStyle.Italic)
                 },
-                inline.range.start,
-                inline.range.end,
             )
             for (child in inline.children) decorateInline(buffer, child, config)
         }
 
         is dev.fude.markdown.CodeSpanNode ->
-            buffer.addStyle(SpanStyle(background = Color(0x1F000000)), inline.range.start, inline.range.end)
+            addStyle(buffer, inline.range, SpanStyle(background = Color(0x1F000000)))
 
         is LinkNode ->
-            buffer.addStyle(
-                SpanStyle(color = Color(0xFF3B7DD8), textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-                inline.labelRange.start,
-                inline.labelRange.end,
+            addStyle(
+                buffer,
+                inline.labelRange,
+                SpanStyle(
+                    color = Color(0xFF3B7DD8),
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                ),
             )
 
         is dev.fude.markdown.ImageNode ->
-            buffer.addStyle(SpanStyle(color = Color(0xFF8A6A3B)), inline.range.start, inline.range.end)
+            addStyle(buffer, inline.range, SpanStyle(color = Color(0xFF8A6A3B)))
 
         is HostInlineNode ->
-            buffer.addStyle(SpanStyle(background = Color(0x1A4A90D9)), inline.range.start, inline.range.end)
+            addStyle(buffer, inline.range, SpanStyle(background = Color(0x1A4A90D9)))
 
         else -> Unit
     }
+}
+
+/**
+ * Adds [style] over [range], or over as much of it as the buffer actually holds.
+ *
+ * `TextFieldBuffer.addStyle` throws `IllegalArgumentException` on a range running past
+ * the end. Every range reaching here comes from a block tree, and that tree is only
+ * as trustworthy as the parse that produced it — so a parser bug must not be able to
+ * take the editor down.
+ *
+ * Clipping rather than skipping: a span cut at the buffer's end still shows the user
+ * the emphasis they typed, where dropping it loses it without a word.
+ */
+private fun addStyle(
+    buffer: androidx.compose.foundation.text.input.TextFieldBuffer,
+    range: dev.fude.core.InlineRange,
+    style: SpanStyle,
+) {
+    val start = range.start.coerceIn(0, buffer.length)
+    val end = range.end.coerceIn(start, buffer.length)
+    if (end <= start) return
+    buffer.addStyle(style, start, end)
 }
 
 /** How many characters two strings share from the start. */

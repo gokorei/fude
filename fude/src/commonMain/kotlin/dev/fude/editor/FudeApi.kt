@@ -69,8 +69,19 @@ public class EditorState private constructor(
      * way — see `ImeCommitter`, which records composition as one edit — and that
      * undo groups by change rather than by keystroke.
      *
-     * @throws IllegalArgumentException if [newSelection] falls outside [newText],
-     *   which would put the caret somewhere the user cannot see or fix.
+     * **An out-of-range selection is clamped, not rejected.**
+     *
+     * A selection belonging to the *previous* document is the normal case here
+     * rather than a caller error: the field reports the selection it had when the
+     * text was swapped underneath it, so its offsets are routinely past the end of
+     * the text now in hand. Throwing there would take the editor down on the act of
+     * loading a note, so both ends are coerced into the new text and the document
+     * is always left in a usable state.
+     *
+     * This matches [moveCaretTo] and [selectRange], which have always clamped. It
+     * is the throw-on-garbage argument that loses, and deliberately so: a caret the
+     * user cannot see is a bug report, and a crash on a core path is worse than a
+     * caret at the end of the document.
      */
     public fun applyEdit(newText: String, newSelection: CoreTextRange) {
         val candidate = CoreEditorState.of(newText, newSelection.start.coerceIn(0, newText.length))

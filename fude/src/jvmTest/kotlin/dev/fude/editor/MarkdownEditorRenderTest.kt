@@ -1,5 +1,8 @@
 package dev.fude.editor
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
@@ -172,5 +175,110 @@ class MarkdownEditorRenderTest {
         rule.setContent { MarkdownEditor(state = state) }
         rule.waitForIdle()
         assertTrue(state.text.length > 100_000, "the 5,000-line fixture is in play")
+    }
+
+    /**
+     * Opening one note and then another, which is what a host does when the user
+     * clicks a different document.
+     *
+     * This is the path that crashed. Not because the selection was rejected — it is
+     * clamped, and always was — but because the renderer decorated the *previous*
+     * document's block tree against the new, shorter buffer, and every range in it
+     * past the new end threw out of `addStyle`. The failure needed a real second
+     * document with a table in it, because that is where a span far enough down the
+     * old text comes from.
+     */
+    @Test
+    fun loadingASecondShorterDocumentDoesNotCrash() {
+        val first = """
+            # First note
+
+            A paragraph with **bold** text, `code`, and [a link](https://example.com).
+
+            - An item
+                - A nested item
+
+            | Column A | Column B |
+            |----------|----------|
+            | `code`  | **bold** |
+
+            ---
+
+            The last paragraph, long enough that the table's spans sit well past the
+            offset where the second document ends.
+        """.trimIndent() + "\n"
+
+        var state by mutableStateOf(EditorState.of(first))
+        rule.setContent { MarkdownEditor(state = state) }
+        rule.waitForIdle()
+        assertEquals(first, state.text)
+
+        val second = "# Second\n\nShort.\n"
+        // A host swaps the whole state object, which is what `remember { EditorState.of(..) }`
+        // does when its key changes.
+        rule.runOnIdle { state = EditorState.of(second) }
+        rule.waitForIdle()
+
+        assertEquals(second, state.text, "the host's document wins")
+        rule.onNodeWithTag(TAG_EDITOR).assertTextContains("Second", substring = true)
+
+        // The documented caret contract: the host owns it, and `EditorState.of`
+        // puts it at the end of the document it was handed. Nothing here carries
+        // over from the first note.
+        assertEquals(
+            CoreTextRange(second.length, second.length),
+            state.selection,
+            "loading a document puts the caret at its end, wherever the previous one left it",
+        )
+    }
+
+    /**
+     * The same crash from the gesture side: select all, then paste over it.
+     *
+     * Worth its own test because it arrives through a different path — the platform's
+     * replacement gesture rather than a host state swap — and it is the one a user
+     * can reach without a host cooperating.
+     */
+    @Test
+    fun pastingOverASelectAllInALongDocumentDoesNotCrash() {
+        val long = (0 until 300).joinToString("\n\n") { "Paragraph $it with **bold** and `code`." }
+        val state = EditorState.of(long)
+        rule.setContent { MarkdownEditor(state = state) }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(TAG_EDITOR).performTextReplacement("replaced")
+        rule.waitForIdle()
+
+        assertEquals("replaced", state.text)
+        rule.onNodeWithTag(TAG_EDITOR).assertTextContains("replaced")
+    }
+
+    /**
+     * A selection belonging to the document the field *used* to hold.
+     *
+     * The field reports the selection it had when its text was swapped underneath it,
+     * so out-of-range offsets are the normal case on this path rather than a caller
+     * mistake. Clamping is the contract; the assertion is here so that a future
+     * decision to throw instead has to change this test rather than happen by
+     * accident.
+     */
+    @Test
+    fun aStaleSelectionFromThePreviousDocumentIsClampedNotRejected() {
+        val state = EditorState.of("a document of some length")
+        state.selectRange(5, 9)
+
+        val replacement = "# Short\n"
+        state.applyEdit(replacement, CoreTextRange(5, 9))
+
+        assertEquals(replacement, state.text)
+        assertTrue(
+            state.selection.end <= replacement.length,
+            "the caret must land inside the new text, was ${state.selection}",
+        )
+        assertEquals(
+            8,
+            state.selection.end,
+            "and at the end of it, which is where 9 clamps to in an 8-character document",
+        )
     }
 }
