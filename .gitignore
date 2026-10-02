@@ -1,8 +1,17 @@
+# Gradle
 .gradle/
 build/
-local.properties
+.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
 .idea/
 *.iml
+
+# OS
 .DS_Store
+
+# Local
+local.properties
 xcuserdata/
 *.xcworkspace
