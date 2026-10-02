@@ -25,6 +25,21 @@ public class ReparseCounter {
         fullParses++
     }
 
+    /**
+     * Records one *top-level* block parsed on the incremental path.
+     *
+     * Top-level only, and only outside a full parse, because those are the two
+     * distinctions that make the number mean something. Counting nested blocks would
+     * make parsing one list item cost several, and the design commitment is about
+     * top-level blocks. Counting blocks inside `parse` would make the full-parse
+     * count redundant with the block count.
+     *
+     * Counting *per block constructed* rather than per call site is the whole point.
+     * An earlier version incremented once per loop iteration in [reparse], which
+     * reported `blockParses == 1` for a call that had in fact parsed the entire
+     * document — so the test guarding this design's central performance claim passed
+     * while the property was violated. See the reparse loop for the other half.
+     */
     public fun recordBlockParse() {
         blockParses++
     }
@@ -123,7 +138,7 @@ public class IncrementalMarkdownParser(
             // while they still fit. A document that shrank past them has not left
             // the earlier blocks alone, whatever the edit claims.
             if (boundary > text.length) return parse(text)
-            val reparsedTail = parseBlocks(text, boundary, text.length)
+            val reparsedTail = parseBlocks(text, boundary, text.length, countBlocks = true)
             counter.recordBlockParse()
             val document = ParsedDocument(text, previous.blocks + reparsedTail)
             cached = document
@@ -138,8 +153,6 @@ public class IncrementalMarkdownParser(
 
         // Reparse forward until we have covered the old affected block's extent.
         val targetEnd = (previous.blocks[firstAffected].range.end + delta).coerceIn(0, text.length)
-        val reparsed = mutableListOf<BlockNode>()
-        var cursor = boundary
 
         // Stop at the last non-whitespace character, not at `text.length`.
         //
@@ -153,12 +166,24 @@ public class IncrementalMarkdownParser(
         // see a block the document does not contain.
         val contentEnd = text.indexOfLast { !it.isWhitespace() } + 1
 
+        // Built up from the untouched head rather than concatenated at the end, so a
+        // reparse that begins on a table's delimiter row can complete the header row
+        // already in `head` into a TableNode, exactly as a full parse would.
+        val document = previous.blocks.take(firstAffected).toMutableList()
+        var cursor = boundary
+
         while (cursor < contentEnd) {
-            val (block, next) = parseOneBlock(text, cursor, contentEnd)
-            counter.recordBlockParse()
-            if (next <= cursor) break
-            reparsed += block
-            cursor = next
+            val step = parseOneBlock(text, cursor, contentEnd, document.lastOrNull())
+            if (step.next <= cursor) break
+            val node = step.block
+            if (node != null) {
+                if (step.replacesPrevious && document.isNotEmpty()) {
+                    document[document.lastIndex] = node
+                } else {
+                    document += node
+                }
+            }
+            cursor = step.next
             if (cursor >= targetEnd) break
         }
 
@@ -166,14 +191,12 @@ public class IncrementalMarkdownParser(
         // blocks and the tail has been re-parsed already. Reusing it would duplicate.
         val tailStart = shiftedTail.firstOrNull()?.range?.start
         val tailConsumed = tailStart != null && cursor > tailStart
-        val head = previous.blocks.take(firstAffected)
 
-        val document = ParsedDocument(
+        cached = ParsedDocument(
             text = text,
-            blocks = if (tailConsumed) head + reparsed else head + reparsed + shiftedTail,
+            blocks = if (tailConsumed) document else document + shiftedTail,
         )
-        cached = document
-        return document
+        return cached
     }
 
     /**
@@ -190,21 +213,38 @@ public class IncrementalMarkdownParser(
         textLength: Int,
     ): Boolean = tail.all { it.range.start + delta >= 0 && it.range.end + delta <= textLength }
 
-    /**
-     * Parses the single block starting at [start].
-     *
-     * @return the block and the offset the next block begins at.
-     */
+/**
+ * Parses the single block starting at [start], reading nothing beyond it.
+ *
+ * The whole cost of the incremental path lives here, so it is worth being exact
+ * about what it does: it parses **one** block and stops at that block's boundary. It
+ * does not call [parseBlocks] over `[start, end)`, which would build a `BlockNode`
+ * for every remaining block in the document only to return the first and discard the
+ * rest — that is what made the "block-bounded" reparse three times *slower* than a
+ * full parse at 5,000 lines, while [ReparseCounter] cheerfully reported one block.
+ *
+ * Blank lines between blocks are skipped rather than returned, so [next] can jump
+ * over them and the caller may find the next block already in hand.
+ *
+ * @return the block and the offset the next block begins at.
+ */
     private fun parseOneBlock(
         text: String,
         start: Int,
         end: Int,
-    ): Pair<BlockNode, Int> {
-        val blocks: List<BlockNode> = parseBlocks(text, start, end)
-        val first: BlockNode = blocks.firstOrNull() ?: return Pair(blankNode(start, end), end)
-        val next: Int = blocks.getOrNull(1)?.range?.start?.coerceAtLeast(first.range.end)
-            ?: first.range.end.coerceAtLeast(start + 1)
-        return Pair(first, next)
+        previous: BlockNode?,
+    ): BlockStep {
+        var cursor = start
+        while (cursor < end) {
+            val step = parseBlockAt(text, cursor, end, previous)
+            if (step.next <= cursor) break
+            if (step.block != null) {
+                counter.recordBlockParse()
+                return step
+            }
+            cursor = step.next
+        }
+        return BlockStep(blankNode(start, end), end)
     }
 
     private fun blankNode(start: Int, end: Int): BlockNode =
@@ -260,8 +300,153 @@ public class IncrementalMarkdownParser(
             }
         }
 
-    /** Parses [text] between [start] and [end] into top-level blocks. */
-    private fun parseBlocks(text: String, start: Int, end: Int): List<BlockNode> {
+    /**
+ * One step of the block scanner: a block, and where the next one starts.
+ *
+ * [replacesPrevious] is the case that keeps a table's header row from appearing
+ * twice. A delimiter row does not introduce a block; it completes the `TableRowNode`
+ * above it into a `TableNode`. Carrying that as an explicit flag rather than
+ * inferring it afterwards is what lets [parseBlockAt] be reused by the
+ * incremental path without either caller having to know about table internals.
+ */
+private class BlockStep(
+    val block: BlockNode?,
+    val next: Int,
+    val replacesPrevious: Boolean = false,
+)
+
+/**
+     * Parses the single block starting at [from], and stops there.
+     *
+     * This is the unit the incremental path is built on, so it must not read past
+     * the block it returns. [previous] is the block immediately above [from], needed
+     * because a table's delimiter row means nothing without the header row above it.
+     *
+     * The block is `null` when the range held only blank lines: those separate
+     * blocks rather than being one, so the cursor advances and the caller asks again.
+     */
+    private fun parseBlockAt(
+        text: String,
+        from: Int,
+        end: Int,
+        previous: BlockNode?,
+    ): BlockStep {
+        val lineEnd = lineEndAt(text, from, end)
+        val line = text.substring(from, lineEnd)
+
+        fun step(block: BlockNode?, next: Int, replacesPrevious: Boolean = false) =
+            BlockStep(block, next, replacesPrevious)
+
+        return when {
+            line.isBlank() -> step(null, skipNewline(text, lineEnd, end))
+
+            isFence(line) -> {
+                val fenceEnd = endOfFence(text, from, end)
+                val openingEnd = skipNewline(text, lineEndAt(text, from, end), fenceEnd)
+                // The closing fence line is not content either.
+                val contentEnd = closingFenceStart(text, from, fenceEnd) ?: fenceEnd
+                step(
+                    CodeFenceNode(
+                        range = InlineRange(from, fenceEnd),
+                        contentRange = InlineRange(openingEnd, contentEnd.coerceAtLeast(openingEnd)),
+                        info = fenceInfo(text, from, fenceEnd),
+                    ),
+                    fenceEnd,
+                )
+            }
+
+            isThematicBreak(line) ->
+                step(ThematicBreakNode(InlineRange(from, lineEnd)), skipNewline(text, lineEnd, end))
+
+            isAtxHeading(line) != null -> step(
+                HeadingNode(
+                    range = InlineRange(from, lineEnd),
+                    level = isAtxHeading(line)!!,
+                    inlines = parseInline(text, from + headingPrefixLength(line), lineEnd),
+                ),
+                skipNewline(text, lineEnd, end),
+            )
+
+            isListMarker(line) != null ->
+                parseList(text, from, end).let { (consumed, node) -> step(node, consumed) }
+
+            isTableDelimiter(line) -> {
+                // A delimiter row only means something after a header row.
+                if (previous is TableRowNode) {
+                    val tableEnd = endOfTable(text, lineEnd, end)
+                    step(
+                        TableNode(
+                            range = InlineRange(previous.range.start, tableEnd),
+                            children = listOf(previous) + tableRows(text, lineEnd, tableEnd),
+                            hasHeader = true,
+                        ),
+                        tableEnd,
+                        replacesPrevious = true,
+                    )
+                } else {
+                    step(null, skipNewline(text, lineEnd, end))
+                }
+            }
+
+            isTableRow(line) -> {
+                val delimiterEnd = lineEndAt(text, lineEnd, end)
+                if (isTableDelimiter(text.substring(lineEnd, delimiterEnd))) {
+                    val tableEnd = endOfTable(text, delimiterEnd, end)
+                    step(
+                        TableNode(
+                            range = InlineRange(from, tableEnd),
+                            children = tableRows(text, from, tableEnd),
+                            hasHeader = true,
+                        ),
+                        tableEnd,
+                    )
+                } else {
+                    step(
+                        TableRowNode(
+                            range = InlineRange(from, lineEnd),
+                            cells = parseCells(text, from, lineEnd),
+                        ),
+                        skipNewline(text, lineEnd, end),
+                    )
+                }
+            }
+
+            isBlockQuote(line) ->
+                parseBlockQuote(text, from, end).let { (consumed, node) -> step(node, consumed) }
+
+            else -> {
+                val consumed = endOfParagraph(text, from, end)
+                // Exclude the trailing newline from the block: a paragraph's range is
+                // its content, and a caret at the end of a line is at the block's end,
+                // not one past a newline it does not contain.
+                val contentEnd = text.lastIndexOf('\n', consumed - 1).let {
+                    if (it < from) consumed else it
+                }
+                step(
+                    ParagraphNode(
+                        range = InlineRange(from, contentEnd),
+                        inlines = parseInline(text, from, contentEnd),
+                    ),
+                    consumed,
+                )
+            }
+        }
+    }
+
+    /**
+     * Parses [text] between [start] and [end] into top-level blocks.
+     *
+     * [countBlocks] records each top-level block against [ReparseCounter], and is set
+     * only when this call is doing incremental work. Recursive descents into a block's
+     * own content leave it off: those blocks are part of parsing the block above them,
+     * not extra top-level reparses.
+     */
+    private fun parseBlocks(
+        text: String,
+        start: Int,
+        end: Int,
+        countBlocks: Boolean = false,
+    ): List<BlockNode> {
         val blocks = mutableListOf<BlockNode>()
         var cursor = start
 
@@ -276,95 +461,19 @@ public class IncrementalMarkdownParser(
         }
 
         while (cursor < end) {
-            val lineEnd = lineEndAt(text, cursor, end)
-            val line = text.substring(cursor, lineEnd)
-
-            when {
-                line.isBlank() -> cursor = skipNewline(text, lineEnd, end)
-                isFence(line) -> {
-                    val fenceEnd = endOfFence(text, cursor, end)
-                    val openingEnd = skipNewline(text, lineEndAt(text, cursor, end), fenceEnd)
-                    // The closing fence line is not content either.
-                    val contentEnd = closingFenceStart(text, cursor, fenceEnd) ?: fenceEnd
-                    blocks += CodeFenceNode(
-                        range = InlineRange(cursor, fenceEnd),
-                        contentRange = InlineRange(openingEnd, contentEnd.coerceAtLeast(openingEnd)),
-                        info = fenceInfo(text, cursor, fenceEnd),
-                    )
-                    cursor = fenceEnd
-                }
-                isThematicBreak(line) -> {
-                    blocks += ThematicBreakNode(InlineRange(cursor, lineEnd))
-                    cursor = skipNewline(text, lineEnd, end)
-                }
-                isAtxHeading(line) != null -> {
-                    val level = isAtxHeading(line)!!
-                    blocks += HeadingNode(
-                        range = InlineRange(cursor, lineEnd),
-                        level = level,
-                        inlines = parseInline(text, cursor + headingPrefixLength(line), lineEnd),
-                    )
-                    cursor = skipNewline(text, lineEnd, end)
-                }
-                isListMarker(line) != null -> {
-                    val (consumed, node) = parseList(text, cursor, end)
+            val step = parseBlockAt(text, cursor, end, blocks.lastOrNull())
+            if (step.next <= cursor) break
+            step.block?.let { node ->
+                if (step.replacesPrevious && blocks.isNotEmpty()) {
+                    // The header row was already counted when it was appended; the
+                    // table that replaces it is the same block, now complete.
+                    blocks[blocks.lastIndex] = node
+                } else {
                     blocks += node
-                    cursor = consumed
-                }
-                isTableDelimiter(line) -> {
-                    // A delimiter row only means something after a header row.
-                    val previous = blocks.lastOrNull()
-                    if (previous is TableRowNode) {
-                        val tableEnd = endOfTable(text, lineEnd, end)
-                        blocks[blocks.lastIndex] = TableNode(
-                            range = InlineRange(previous.range.start, tableEnd),
-                            children = listOf(previous) + tableRows(text, lineEnd, tableEnd),
-                            hasHeader = true,
-                        )
-                        cursor = tableEnd
-                    } else {
-                        cursor = skipNewline(text, lineEnd, end)
-                    }
-                }
-                isTableRow(line) -> {
-                    val nextLineEnd = lineEndAt(text, lineEnd, end)
-                    val nextLine = text.substring(lineEnd, nextLineEnd)
-                    if (isTableDelimiter(nextLine)) {
-                        val tableEnd = endOfTable(text, nextLineEnd, end)
-                        blocks += TableNode(
-                            range = InlineRange(cursor, tableEnd),
-                            children = tableRows(text, cursor, tableEnd),
-                            hasHeader = true,
-                        )
-                        cursor = tableEnd
-                    } else {
-                        blocks += TableRowNode(
-                            range = InlineRange(cursor, lineEnd),
-                            cells = parseCells(text, cursor, lineEnd),
-                        )
-                        cursor = skipNewline(text, lineEnd, end)
-                    }
-                }
-                isBlockQuote(line) -> {
-                    val (consumed, node) = parseBlockQuote(text, cursor, end)
-                    blocks += node
-                    cursor = consumed
-                }
-                else -> {
-                    val consumed = endOfParagraph(text, cursor, end)
-                    // Exclude the trailing newline from the block: a paragraph's
-                    // range is its content, and a caret at the end of a line is at
-                    // the block's end, not one past a newline it does not contain.
-                    val contentEnd = text.lastIndexOf('\n', consumed - 1).let {
-                        if (it < cursor) consumed else it
-                    }
-                    blocks += ParagraphNode(
-                        range = InlineRange(cursor, contentEnd),
-                        inlines = parseInline(text, cursor, contentEnd),
-                    )
-                    cursor = consumed
+                    if (countBlocks) counter.recordBlockParse()
                 }
             }
+            cursor = step.next
         }
         return blocks
     }

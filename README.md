@@ -75,9 +75,11 @@ that the state does not already hold.
   the thing that removes the ambiguity of "am I typing Markdown or prose?"
   Toggle state lives *outside* the document, so toggling never marks a note
   modified.
-- **Bounded reparse.** An edit reparses one block, asserted on a counter rather
-  than a timing. This is a correctness requirement, not an optimisation — see the
-  spike for why.
+- **Bounded reparse.** An edit reparses one block, not the document. Asserted on a
+  counter rather than a timing, because a counter is exact and a timing fails on a
+  slow machine while the code is equally wrong. This is a correctness requirement,
+  not an optimisation: a full reparse of a 5,000-line note per keystroke is not
+  affordable.
 
 ## Architecture
 
@@ -98,10 +100,15 @@ platform's own APIs.
 
 Stated plainly, because each is real work rather than a detail.
 
-1. **A keystroke into a 5,000-line note costs 110 ms** (186 ms with decoration),
-   against a 16 ms frame budget. Reparse is properly bounded to one block; the
-   remaining cost is Compose re-laying-out the whole document. Fix is block-level
-   virtualization.
+1. **A keystroke into a large note costs far more than a frame.** The figures
+   formerly quoted here — 110 ms at 5,000 lines, 186 ms with decoration — came from
+   a synthetic stand-in rather than the real editor and should not be relied on.
+   Reparse is now genuinely bounded and measured: one keystroke's reparse costs
+   1.27 ms against a 3.46 ms full parse at 5,000 lines, and the same ratio holds at
+   50,000. So the cost is layout, not parsing, and the fix is block-level
+   virtualization. The 24 fps crossover has never actually been measured on screen,
+   which is what the `N10SMVJX` ticket exists to do before anyone commits to a
+   window size; the number that decides it is not yet in.
 2. **Undo grouping is implemented and tested but not yet fed from the platform
    gesture path.** Compose reports whole-change diffs, so undo granularity is
    currently whatever Compose reports.

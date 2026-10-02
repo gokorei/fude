@@ -193,6 +193,59 @@ class IncrementalReparseTest {
      * range from the old text. Comparing against `parse` pins both down without
      * having to know in advance which one the incremental path got wrong.
      */
+    /**
+     * The same property, at a size where it is impossible to get right by accident.
+     *
+     * An earlier `parseOneBlock` parsed `[start, end)` — the whole document tail —
+     * and returned only the first block. `ReparseCounter` incremented once per loop
+     * iteration, so it reported one block parsed while parsing 50,000. Measured, that
+     * made one keystroke's reparse **2.96× slower than a full parse** at 5,000 lines,
+     * which is the opposite of what the design is for.
+     *
+     * Asserted on the counter rather than a timing because that is exact: a timing
+     * assertion fails on a slow machine while the code is equally wrong. This test
+     * fails against the old implementation and passes now.
+     */
+    @Test
+    fun aKeystrokeInAVeryLargeDocumentStillParsesOneBlock() {
+        val text = document(50_000)
+        val counter = ReparseCounter()
+        val parser = IncrementalMarkdownParser(counter = counter)
+        parser.parse(text)
+
+        val at = text.length / 2
+        val edited = text.substring(0, at) + "x" + text.substring(at)
+        parser.reparse(edited, Insert(at, "x"))
+
+        // The fixture check goes through a second parser so it cannot move this
+        // one's counter.
+        assertEquals(50_000, IncrementalMarkdownParser().parse(text).blocks.size, "the fixture is the size claimed")
+        assertEquals(
+            1,
+            counter.blockParses,
+            "one keystroke in a 50,000-paragraph document must not parse 50,000 blocks",
+        )
+        assertEquals(1, counter.fullParses, "and must not fall back to a full parse")
+    }
+
+    /**
+     * The same invariant, over 8 edits.
+     *
+     * What we actually measured is recorded in the ticket and in the README:
+     *
+     * | lines | reparse before | reparse after | full parse |
+     * |---|---|---|---|
+     * | 500 | 0.83 ms | 0.13 ms | 0.78 ms |
+     * | 5,000 | 10.07 ms | 1.27 ms | 3.46 ms |
+     * | 50,000 | 30.71 ms | 6.14 ms | 34.44 ms |
+     *
+     * Reparse is now cheaper than a full parse at every size measured. It is **not**
+     * flat in document length, and should not be claimed to be: the design shifts the
+     * untouched tail by the edit's delta, which means rebuilding a node per tail block
+     * on every keystroke. That is O(n) by construction and is a separate question
+     * from this one. At 1,682 lines — the live document in the functional suite — the
+     * tail is small enough that it does not matter.
+     */
     @Test
     fun everyReparseAgreesWithAFullParseOfTheSameText() {
         val original = realisticDocument()
