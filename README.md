@@ -123,10 +123,11 @@ Notes worth keeping, all of which cost time to find:
 - Compose 1.12.1's Android artifacts need `compileSdk 37` **and** AGP 9.1+.
 - `org.jetbrains.compose.material3:material3:1.12.1` **does not exist** — the
   Material3 artifact is versioned separately and lags.
-- Desktop Compose tests need an explicit
-  `runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-macos-arm64")` or
+- Desktop Compose tests need Skiko's per-OS native runtime on the classpath
+  (all five are declared, since the loader picks at runtime) or
   `org.jetbrains.skia.Surface` fails with an `ExceptionInInitializerError` that
-  says nothing useful.
+  says nothing useful. Declaring only the macOS one is the trap: it works on the
+  machine that wrote it and fails everywhere else.
 
 ## Building
 

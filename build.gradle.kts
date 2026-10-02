@@ -42,7 +42,7 @@ val forbiddenImportPrefixes = listOf("java.", "javax.")
 
 val checkedDirs = listOf("fude-core/src/commonMain", "fude/src/commonMain")
 
-val checkArchitecture by tasks.registering {
+val checkArchitecture = tasks.register("checkArchitecture") {
     group = "verification"
     description = "Fails if commonMain depends on Opal, java.*, or (in :fude-core) Compose."
 
