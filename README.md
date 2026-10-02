@@ -29,7 +29,9 @@ supplies its own dialect.
 | Keys, undo, IME, clipboard | **Partly** — see [Known gaps](#known-gaps) |
 | iOS, Web, Wasm, native | Not declared |
 
-232 tests, `./gradlew build` green.
+246 tests, `./gradlew build` green — 243 of them against fixtures checked into
+the repo, and 14 against Markdown served by a live knowledge store. See
+[Testing](#testing) for what the second group needs, and what its absence means.
 
 ## Modules
 
@@ -139,6 +141,64 @@ Notes worth keeping, all of which cost time to find:
 The demo opens on a document containing every block kind, plus two things the
 library knows nothing about: `{{mentions}}` and `> [!note]` callouts, both
 registered by the host. See [`fude-demo/README.md`](fude-demo/README.md).
+
+Point it at real Markdown instead of the baked-in sample with either:
+
+```bash
+FUDE_DEMO_FILE=/path/to/note.md ./gradlew :fude-demo:run
+./gradlew :fude-demo:run -Dfude.demo.file=/path/to/note.md
+```
+
+## Testing
+
+`./gradlew build` runs everything and is green with no external services. That
+is most of the suite, and it is worth being precise about which part it is not.
+
+### The Tanseki functional suite
+
+`TansekiFunctionalTest` is the exception. Every other test parses a fixture
+someone wrote by hand; this one parses Markdown fetched over HTTP from a running
+[Tanseki](https://github.com/DavyMaddelein/tanseki) daemon. The reason is not
+elegance. Hand-written fixtures contain the syntax the author already thought of,
+which is exactly the syntax that works. The failures worth catching are the ones
+nobody types on purpose — a code fence whose contents look like Markdown, a link
+label shorter than its destination, an emoji that is four code points but one
+character.
+
+It found three real defects on its first run. One of them,
+`SyntaxExtension.recogniseBlocks` never being called, was invisible to the
+existing suite in a way worse than a gap: `SyntaxExtensionTest` calls the method
+directly, passes, and makes a dead public API look covered.
+
+To run it, seed a daemon and point the suite at it:
+
+```bash
+# 1. a Tanseki daemon on :8088 (or anywhere — see below)
+# 2. seed the six documents
+python3 scripts/seed_tanseki.py
+python3 scripts/seed_tanseki.py --base-url http://elsewhere:8088
+TANSEKI_URL=http://elsewhere:8088 python3 scripts/seed_tanseki.py
+
+# 3. run the suite
+./gradlew :fude:jvmTest --tests "dev.fude.functional.TansekiFunctionalTest"
+```
+
+The seed script upserts, so re-running it is safe, and it reads every document
+back through the same endpoint the test suite uses and compares byte for byte
+before reporting success. A seed that did not round-trip exactly would surface
+as a parser failure three files away; instead it fails at the seed, naming the
+character it diverged at.
+
+### A green run is not coverage against real content
+
+With no daemon running, `TansekiFunctionalTest` **skips** rather than fails —
+fourteen tests that silently do not run. That is deliberate: CI has no Tanseki,
+and a missing service is not a defect in the editor.
+
+It does mean `./gradlew build` reporting green tells you nothing about real
+content unless a daemon was actually there. Three of those fourteen tests are
+currently `@Ignore`d, each carrying the diagnosis of a known defect, so a fully
+seeded run reports 11 passing and 3 skipped.
 
 ## Licence
 

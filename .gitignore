@@ -15,3 +15,7 @@ build/
 local.properties
 xcuserdata/
 *.xcworkspace
+
+# Python
+__pycache__/
+*.pyc

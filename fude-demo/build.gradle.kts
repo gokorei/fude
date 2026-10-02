@@ -31,3 +31,11 @@ compose.desktop {
         }
     }
 }
+
+// `run` is a JavaExec, so `-Dfude.demo.file=...` on the Gradle command line
+// would otherwise be read by the Gradle daemon and never reach the demo.
+tasks.withType<JavaExec>().configureEach {
+    providers.systemProperty("fude.demo.file").orNull?.let {
+        systemProperty("fude.demo.file", it)
+    }
+}

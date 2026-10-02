@@ -22,6 +22,30 @@ The fenced block at the bottom of the sample contains `# not a heading` and
 `[[not a wikilink]]`. Neither becomes markup. That is the classic live-preview
 bug and it is what `MarkdownParserTest.aFenceKeepsItsContentsOpaque` pins down.
 
+## Pointing it at a real document
+
+The sample exercises syntax on purpose. A real file is how you find out what the
+editor does with the syntax nobody thought to put in a fixture — so override it:
+
+```bash
+FUDE_DEMO_FILE=/path/to/note.md ./gradlew :fude-demo:run
+./gradlew :fude-demo:run -Dfude.demo.file=/path/to/note.md
+```
+
+Either form wins over the sample; without one, the sample loads as before. To
+try the seeded documents from the functional suite:
+
+```bash
+python3 scripts/seed_tanseki.py
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"id":"long-note"}' http://127.0.0.1:8088/v1/documents:get \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["content"], end="")' > /tmp/note.md
+FUDE_DEMO_FILE=/tmp/note.md ./gradlew :fude-demo:run
+```
+
+`long-note` is 1,682 lines and comfortably past the point where keystrokes stop
+being free — which is the point of opening it.
+
 ## What is deliberately absent
 
 No Opal, no document model, no persistence, no network. The demo holds a string

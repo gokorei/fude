@@ -122,13 +122,36 @@ private val sampleDocument = """
     RTL: مرحبا بالعالم
 """.trimIndent()
 
+/**
+ * Loads the document to edit.
+ *
+ * `FUDE_DEMO_FILE`, or the `fude.demo.file` system property, names a path — so the
+ * demo can be pointed at real Markdown, a file pulled out of a running Tanseki
+ * say, instead of only the sample baked in below. The sample exercises syntax on
+ * purpose; a real file is how you find out what the editor does with the syntax
+ * nobody thought to put in a fixture.
+ *
+ * Fails loudly rather than falling back to the sample. A demo that silently opens
+ * the wrong document costs more time than one that refuses to open.
+ */
+private fun loadDocument(): String {
+    val fromEnv = System.getenv("FUDE_DEMO_FILE")
+    val fromProperty = System.getProperty("fude.demo.file")
+    val path = fromEnv ?: fromProperty ?: return sampleDocument
+
+    val origin = if (fromEnv != null) "FUDE_DEMO_FILE" else "-Dfude.demo.file"
+    val file = java.io.File(path)
+    require(file.isFile) { "$origin is not a file: $path" }
+    return file.readText()
+}
+
 @Composable
 private fun App() {
     val mention = remember { MentionSyntax() }
     var status by remember { mutableStateOf("Ready.") }
     var lastText by remember { mutableStateOf("") }
 
-    val state = remember { EditorState.of(sampleDocument) }
+    val state = remember { EditorState.of(loadDocument()) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         MarkdownEditor(
