@@ -268,4 +268,187 @@ class MarkdownParserTest {
         assertEquals(1, host.size)
         assertEquals("fake", host.single().extensionId)
     }
+
+    // --------------------------------------------------------- the `---` family
+
+    /**
+     * The three constructs that share the character sequence `---`, and the one that
+     * makes this worth testing carefully.
+     *
+     * 1. A table's header separator row, `|---|---|`. Table syntax, always.
+     * 2. A thematic break on its own. A horizontal rule.
+     * 3. A setext heading underline. **Not implemented** — see
+     *    [aDashRunAfterAParagraphIsAThematicBreakAndNotASetextHeading].
+     *
+     * The bug this pins down was a bare `---` satisfying the table delimiter test,
+     * because that test never required a pipe. So a thematic break following a table
+     * was eaten as one more table row, and the table's range grew to cover it.
+     */
+    @Test
+    fun aThematicBreakAfterATableIsNotAbsorbedIntoTheTable() {
+        val text = """
+            | a | b |
+            |---|---|
+            | 1 | 2 |
+
+            ---
+
+            after
+        """.trimIndent()
+
+        val doc = parse(text)
+        assertEquals(
+            listOf(BlockKind.TABLE, BlockKind.THEMATIC_BREAK, BlockKind.PARAGRAPH),
+            doc.blocks.map { it.kind },
+            "table, then a horizontal rule, then a paragraph",
+        )
+
+        val table = assertIs<TableNode>(doc.blocks[0])
+        assertEquals(
+            "| a | b |\n|---|---|\n| 1 | 2 |\n",
+            text.substring(table.range.start, table.range.end),
+            "the table must cover its own rows and nothing else",
+        )
+        assertTrue(
+            table.range.end <= text.indexOf("---", table.range.end),
+            "the table must end before the thematic break",
+        )
+
+        val rule = assertIs<ThematicBreakNode>(doc.blocks[1])
+        assertEquals("---", text.substring(rule.range.start, rule.range.end))
+    }
+
+    @Test
+    fun aThematicBreakOnItsOwnStillParses() {
+        val doc = parse("before\n\n---\n\nafter")
+        assertTrue(
+            doc.blocks.any { it is ThematicBreakNode },
+            "a bare --- is a horizontal rule; saw ${doc.blocks.map { it.kind }}",
+        )
+    }
+
+    @Test
+    fun aTableHeaderSeparatorRowIsStillTableSyntax() {
+        val doc = parse("| a | b |\n|---|---|\n| 1 | 2 |")
+        assertEquals(listOf(BlockKind.TABLE), doc.blocks.map { it.kind })
+        assertIs<TableNode>(doc.blocks.single())
+    }
+
+    /**
+     * Setext headings are not implemented, so `---` after a paragraph is a
+     * thematic break and the paragraph ends.
+     *
+     * Stated as a test rather than left implicit, because it is the ambiguity a
+     * careless fix walks into: reading "a table followed by `---` should stop
+     * absorbing the break" and concluding that `---` belongs to the paragraph
+     * above it is setext heading semantics, which Fude does not have. If that ever
+     * changes, this is where it changes.
+     */
+    @Test
+    fun aDashRunAfterAParagraphIsAThematicBreakAndNotASetextHeading() {
+        val doc = parse("a paragraph\n---\n")
+        assertEquals(
+            listOf(BlockKind.PARAGRAPH, BlockKind.THEMATIC_BREAK),
+            doc.blocks.map { it.kind },
+        )
+    }
+
+    /**
+     * A delimiter row is a row of *cells*, so it must contain a pipe.
+     *
+     * Pinned directly because it is the root cause and it is invisible from the
+     * table's own tests: with the pipe requirement dropped, `---`, `--` and `- - -`
+     * all pass as delimiter rows and swallow whatever follows a table.
+     */
+    @Test
+    fun aDelimiterRowMustContainAPipe() {
+        for (text in listOf("---", "--", "- - -", "  ---  ")) {
+            val blocks = parse("| a |\n${text}\n").blocks
+            assertTrue(
+                blocks.none { it is TableNode },
+                "'$text' has no pipe, so it is not a table and must not become a TableNode; " +
+                    "saw ${blocks.map { it.kind }}",
+            )
+        }
+        // And the ones long enough to be a rule are rules rather than paragraphs.
+        // `- - -` is left out: `isThematicBreak` requires every character to be a
+        // dash, so a space-separated run is not a rule here. That is a CommonMark
+        // deviation and a separate matter from this bug.
+        for (text in listOf("---", "  ---  ")) {
+            assertTrue(
+                parse("| a |\n${text}\n").blocks.any { it is ThematicBreakNode },
+                "'$text' is three dashes or more and so is a horizontal rule",
+            )
+        }
+        // Two dashes are not: CommonMark requires at least three, and treating a
+        // short run as a rule would turn a paragraph of dashes into one.
+        assertEquals(
+            BlockKind.PARAGRAPH,
+            parse("| a |\n--\n").blocks.last().kind,
+        )
+    }
+
+    @Test
+    fun aTableDoesNotClaimTheBlankLinesAfterIt() {
+        //            0123456 7890...
+        val text = "| a |\n|---|\n| 1 |\n\n\nnext"
+        val table = assertIs<TableNode>(parse(text).blocks.first())
+        assertEquals(18, table.range.end, "the table ends just past its last row's newline")
+        assertEquals("| a |\n|---|\n| 1 |\n", text.substring(0, table.range.end))
+    }
+
+    /**
+     * The same over-extension, asked of every block type that scans forward for a
+     * terminator. A table was found this way, and the underlying class of bug is
+     * "the scanner consumed blank lines on its way to giving up", so each of these
+     * is asked directly whether it can reach past its own content.
+     *
+     * An **unclosed** fence is deliberately absent: it runs to the end of the
+     * document, which is the correct reading of unterminated Markdown and is already
+     * pinned by `anUnclosedFenceRunsToTheEndOfTheDocument`. It was in this list
+     * while the table bug was being diagnosed and failed for the right reason.
+     */
+    @Test
+    fun noBlockTypeAbsorbsTheBlankLinesAfterIt() {
+        val cases = mapOf(
+            "a table" to "| a |\n|---|\n| 1 |",
+            "a fence" to "```\ncode\n```",
+            "a block quote" to "> quoted",
+            "a list" to "- one\n- two",
+            "a thematic break" to "---",
+        )
+        for ((label, block) in cases) {
+            val text = "$block\n\n\ntail"
+            val owner = parse(text).blocks.first()
+            assertTrue(
+                owner.range.end <= text.indexOf("tail") - 2,
+                "$label claimed [${owner.range.start}, ${owner.range.end}) of " +
+                    "\"${text.take(owner.range.end)}\", reaching past its own content",
+            )
+        }
+    }
+
+    /**
+     * `blockAt` falls back to "the last block starting at or before this offset", so
+     * an over-extended range silently misroutes every offset inside it. This is the
+     * consequence the ticket cares about, as distinct from the missing block.
+     */
+    @Test
+    fun blockAtResolvesCorrectlyAroundATableFollowedByABreak() {
+        val text = "| a | b |\n|---|---|\n| 1 | 2 |\n\n---\n\nafter"
+        val doc = parse(text)
+
+        for (offset in 0..text.length) {
+            assertEquals(
+                doc.blocks.lastOrNull { it.range.start <= offset }?.kind,
+                doc.blockAt(offset)?.kind,
+                "offset $offset resolved to the wrong block",
+            )
+        }
+        val ruleOffset = text.lastIndexOf("---")   // not the table's own separator row
+        assertTrue(
+            doc.blockAt(ruleOffset) is ThematicBreakNode,
+            "an offset on the break must resolve to the break, not the table",
+        )
+    }
 }

@@ -106,14 +106,6 @@ class TansekiFunctionalTest {
     // ------------------------------------------------------------------ blocks
 
     @Test
-    @Ignore(
-        "DEFECT: a thematic break directly after a table is absorbed into the TableNode's " +
-            "range, so no THEMATIC_BREAK block is emitted and the table's range over-extends " +
-            "past its own content. Confirmed against live Tanseki content: the table node " +
-            "claimed the '---' and the blank lines that followed. A '---' on its own is " +
-            "parsed correctly, so this is specific to following a table. This matters because " +
-            "blockAt() and layout invalidation both key off node ranges. Remove @Ignore once fixed.",
-    )
     fun everyBlockKindInLiveContentIsParsed() {
         val blocks = parse(fetch("blocks")).allBlocks
         val kinds = blocks.map { it.kind }.toSet()

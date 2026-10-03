@@ -536,7 +536,12 @@ private class BlockStep(
      * line at the same indent starts a new item, and [parseList] handles that.
      */
     private fun endOfListItem(text: String, from: Int, end: Int, itemIndent: Int): Int {
-        var cursor = skipNewline(text, from, end)
+        // Past this line's own terminator, not past every newline that follows it.
+        // Starting with `skipNewline` here skipped the blank line between this item
+        // and the next thing in the document before the loop had looked at it, so the
+        // item's range reached past its own content — the same over-extension the
+        // table and the fence had.
+        var cursor = pastLineTerminator(text, from, end)
         while (cursor < end) {
             val lineEnd = lineEndAt(text, cursor, end)
             val line = text.substring(cursor, lineEnd)
@@ -573,15 +578,46 @@ private class BlockStep(
         )
     }
 
+    /**
+     * The offset just past **one** line terminator at [from], or [end].
+     *
+     * [skipNewline] skips every consecutive newline, which is right when stepping
+     * over a run of blank lines and wrong at the end of a block's own content: there
+     * it swallows the blank line that belongs to the gap between blocks and hands the
+     * block a range that reaches into it. `\r\n` counts as one terminator, not two.
+     */
+    private fun pastLineTerminator(text: String, from: Int, end: Int): Int {
+        var i = from
+        if (i < end && text[i] == '\r') {
+            i++
+            if (i < end && text[i] == '\n') i++
+            return i
+        }
+        if (i < end && text[i] == '\n') i++
+        return i
+    }
+
+    /**
+     * Where a table's rows end.
+     *
+     * Returns the offset just past the last row's own line terminator, **not** past the
+     * blank lines that follow it. Returning the position the scan had *reached* rather
+     * than the position the table *ended* at is what made a table's range run on into
+     * whatever came next: `blockAt` resolves offsets by falling back to "the last block
+     * starting at or before this offset", so every offset in the swallowed region
+     * resolved to the table.
+     */
     private fun endOfTable(text: String, from: Int, end: Int): Int {
         var cursor = skipNewline(text, from, end)
+        var lastRowEnd = cursor
         while (cursor < end) {
             val lineEnd = lineEndAt(text, cursor, end)
             val line = text.substring(cursor, lineEnd)
             if (!isTableRow(line) && !isTableDelimiter(line)) break
-            cursor = skipNewline(text, lineEnd, end)
+            lastRowEnd = pastLineTerminator(text, lineEnd, end)
+            cursor = lastRowEnd
         }
-        return cursor
+        return lastRowEnd
     }
 
     private fun tableRows(text: String, start: Int, end: Int): List<TableRowNode> {
@@ -855,7 +891,10 @@ private class BlockStep(
             // A closing fence is at least as long as the opening one and has no
             // info string. This is what lets "````" wrap a line containing "```".
             if (run.length >= fenceLength && run.length >= 3 && line.drop(run.length).isBlank()) {
-                return skipNewline(text, lineEnd, end).coerceAtLeast(lineEnd)
+                // Exactly one line terminator. Taking every newline here would hand
+                // the fence the blank lines that follow it, the same over-extension
+                // the table had.
+                return pastLineTerminator(text, lineEnd, end).coerceAtLeast(lineEnd)
             }
             cursor = skipNewline(text, lineEnd, end)
         }
@@ -996,13 +1035,19 @@ private class BlockStep(
 
     private fun isBlockQuote(line: String): Boolean = line.trimStart().startsWith(">")
 
-    /**
-     * Whether [line] is a table's delimiter row: pipes, dashes and colons only,
-     * with at least one dash per cell.
+/**
+     * Whether [line] is a table's delimiter row: pipes, dashes and colons only, with
+     * at least one dash per cell.
+     *
+     * The pipe requirement is load-bearing. A delimiter row is a row of *cells*; a
+     * line of nothing but dashes is a thematic break, and without this check `---`,
+     * `--` and `- - -` all qualified — which meant a horizontal rule immediately after
+     * a table was eaten as one more table row and the table's range grew to cover it.
      */
     private fun isTableDelimiter(line: String): Boolean {
         val trimmed = line.trim()
         if (!trimmed.contains('-')) return false
+        if (!trimmed.contains('|')) return false
         if (!trimmed.all { it == '|' || it == '-' || it == ':' || it == ' ' }) return false
         // Every cell between pipes must contain a dash, otherwise a paragraph of
         // dashes would qualify.
