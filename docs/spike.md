@@ -313,3 +313,65 @@ Probe output is printed, not asserted, because several probes report timing,
 which is not a pass/fail condition. The assertions that *are* pass/fail —
 fixture invariants, undo step counts, parser structure, `EditorState` rejecting
 an impossible selection — will fail the build if they break.
+
+---
+
+## Correction: the keystroke curve, measured in a real window
+
+The figures above are **superseded**. They were measured in a headless,
+software-rendered Compose harness, at one document size, cold, in a single run. They
+are kept above because they are what the original architecture decisions were made
+against — but they should not be cited.
+
+Measured on 2026-10-03 in a real on-screen window (GPU rasterisation), three
+configurations per size, seven measured samples each after three discarded as JIT
+warm-up. Each sample applies one edit and waits **two** frames, so the figure is
+"time to settled" rather than "time until composition returned". Reproduce with
+`scripts/keystroke_sweep.sh`.
+
+| lines | chars | editor | plain field | static | **editor − static** | editor − plain |
+|---|---|---|---|---|---|---|
+| 250 | 5,185 | 17 ms | 16 ms | 16 ms | **1 ms** | 1 ms |
+| 500 | 10,404 | 17 ms | 16 ms | 16 ms | **1 ms** | 1 ms |
+| 1,000 | 20,535 | 24 ms | 16 ms | 16 ms | **8 ms** | 8 ms |
+| 2,000 | 41,314 | 34 ms | 24 ms | 16 ms | **18 ms** | 10 ms |
+| 4,000 | 82,943 | 66 ms | 41 ms | 16 ms | **49 ms** | 25 ms |
+| 5,000 | 103,914 | 65 ms | 53 ms | 16 ms | **49 ms** | 12 ms |
+
+Medians. `static` is static text with no field at all, so `editor − static` is the
+editor's own cost with window and frame overhead removed — and it is flat at ~16 ms
+across every size, which is the two-frame floor of this setup.
+
+### What this changes
+
+**The 24 fps crossover is ~2,500 lines**, between the 2,000-line point (34 ms) and
+the 4,000-line point (66 ms). State it with its noise: the two largest points are
+66 ms and 65 ms, so the top of the curve is flat to within its own variance, and the
+interpolated crossover is nearer "between 2,000 and 4,000" than any precise figure.
+
+**Layout dominates, decisively.** At 5,000 lines a *bare* `BasicTextField` over the
+same text costs 53 ms. Fude's parse and decoration add 12 ms on top. So roughly
+**four fifths of the keystroke cost is Compose laying out a text field that knows
+nothing about Markdown.** That is the case for windowing the layout, and it is a
+stronger case than the old numbers made it — but it also says the win is bounded by
+what windowing the *field* can recover, not by how much decoration can be optimised.
+
+**The old numbers were wrong in the direction that flattered the problem.** 110 ms
+claimed at 5,000 lines; 65 ms measured. And 186 ms "decorated" is not reproducible at
+all — decoration is 12 ms here, not 76 ms. The 76 ms figure included a stand-in
+`indexOf` scan standing in for a reparse, which the real parser does not spend.
+
+**Worst cases are much worse than medians.** At 5,000 lines, worst was 159 ms
+(samples 60, 147, 60, 159, 65, 152, 64 — visibly bimodal, alternating fast and slow,
+which is the shape of GC or vsync alignment rather than of layout work). A user
+perceives the worst case, not the median, so the practical experience at 5,000 lines
+is closer to 150 ms than 65 ms.
+
+### What this still does not tell us
+
+**The ~50/50 split between the intrinsic-shaping pass and the constrained-layout pass
+inside Skia is unverified.** `editor − plain` attributes cost to "everything Fude
+does", and `plain − static` to "laying out a plain field", but Skia's two passes live
+inside `MultiParagraph.layoutText` and cannot be separated without forking Skiko.
+Windowing still rests on that unverified assumption, and the measurement above does
+not shore it up.

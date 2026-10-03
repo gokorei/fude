@@ -33,7 +33,7 @@ import dev.fude.syntax.SyntaxExtension
  * syntax the library has never heard of, registered by the host and resolved by
  * the host.
  */
-private class MentionSyntax : SyntaxExtension {
+internal class MentionSyntax : SyntaxExtension {
     override val id: String = "mention"
     override val priority: Int = 10
 
@@ -184,12 +184,35 @@ private fun StatusBar(text: String) {
     }
 }
 
-fun main() = application {
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "Fude — live-preview Markdown",
-        state = rememberWindowState(width = 1000.dp, height = 760.dp),
-    ) {
-        App()
+/**
+ * Runs the desktop host, or one keystroke measurement when `FUDE_SWEEP_LINES` is set.
+ *
+ * The measurement needs a real window: its whole point is that the headless harness
+ * rasterises on the CPU and folds every phase into one number, neither of which is
+ * true of a window on a user's screen.
+ *
+ * One configuration per process, driven by `scripts/keystroke_sweep.sh`. Sweeping
+ * from inside a single window was tried and could not sequence its variants without
+ * restarting the effect that was doing the measuring.
+ */
+fun main() {
+    val sweepLines = System.getenv("FUDE_SWEEP_LINES")?.trim()?.toIntOrNull()
+
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = if (sweepLines != null) "Fude — measuring" else "Fude — live-preview Markdown",
+            state = rememberWindowState(width = 1000.dp, height = 760.dp),
+        ) {
+            if (sweepLines != null) {
+                SweepHarness(
+                    lines = sweepLines,
+                    variant = Variant.parse(System.getenv("FUDE_SWEEP_VARIANT")),
+                    onFinished = ::exitApplication,
+                )
+            } else {
+                App()
+            }
+        }
     }
 }

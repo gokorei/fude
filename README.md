@@ -100,15 +100,23 @@ platform's own APIs.
 
 Stated plainly, because each is real work rather than a detail.
 
-1. **A keystroke into a large note costs far more than a frame.** The figures
-   formerly quoted here — 110 ms at 5,000 lines, 186 ms with decoration — came from
-   a synthetic stand-in rather than the real editor and should not be relied on.
-   Reparse is now genuinely bounded and measured: one keystroke's reparse costs
-   1.27 ms against a 3.46 ms full parse at 5,000 lines, and the same ratio holds at
-   50,000. So the cost is layout, not parsing, and the fix is block-level
-   virtualization. The 24 fps crossover has never actually been measured on screen,
-   which is what the `N10SMVJX` ticket exists to do before anyone commits to a
-   window size; the number that decides it is not yet in.
+1. **A keystroke into a large note costs far more than a frame.** Measured in a real
+   window on 2026-10-03: **34 ms at 2,000 lines, 66 ms at 4,000**, against a 42 ms
+   budget for 24 fps — so the crossover is **~2,500 lines**. The figures formerly
+   quoted here (110 ms at 5,000 lines, 186 ms decorated) came from a headless,
+   software-rendered harness at one size and should not be cited; `docs/spike.md` has
+   the correction and why the old numbers flattered the problem.
+
+   The useful part is *where* the cost is. At 5,000 lines a bare `BasicTextField`
+   over the same text costs 53 ms; Fude's parse and decoration add 12. **Four fifths
+   of a keystroke is Compose laying out a field that knows nothing about Markdown**,
+   which is why the fix is block-level virtualization rather than a faster parser.
+
+   Two caveats. Worst case at 5,000 lines was 159 ms against a 65 ms median, and a
+   user perceives the worst case. And the assumed even split between Skia's
+   intrinsic-shaping and constrained-layout passes is still **unverified** — it is
+   internal to Skiko and cannot be measured without forking it — so windowing still
+   rests on an assumption. Reproduce with `scripts/keystroke_sweep.sh`.
 2. **Undo grouping is implemented and tested but not yet fed from the platform
    gesture path.** Compose reports whole-change diffs, so undo granularity is
    currently whatever Compose reports.
