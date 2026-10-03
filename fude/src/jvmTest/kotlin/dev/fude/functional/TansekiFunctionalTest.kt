@@ -33,7 +33,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import java.net.HttpURLConnection
@@ -219,15 +218,6 @@ class TansekiFunctionalTest {
     // --------------------------------------------------------- host extensions
 
     @Test
-    @Ignore(
-        "DEFECT: SyntaxExtension.recogniseBlocks() is never called by production code. " +
-            "IncrementalMarkdownParser and MarkdownEditor both call only recogniseInline(), " +
-            "so no block-level host construct can ever be recognised. The API is public, " +
-            "documented (with ownsTerminator semantics), exercised by fude-core unit tests " +
-            "that call it directly, and shipped in the demo as CalloutSyntax — which " +
-            "therefore never fires. The inline half of this assertion passes. Remove " +
-            "@Ignore once the parser calls recogniseBlocks().",
-    )
     fun hostExtensionsRecogniseSyntaxTheLibraryMustNot() {
         val text = fetch("hosts")
         val parsed = parse(text)

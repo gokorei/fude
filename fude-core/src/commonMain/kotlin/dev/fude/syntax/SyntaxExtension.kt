@@ -27,6 +27,11 @@ public data class BlockMatch(
  * Deliberately a value, and deliberately just text plus offsets: an extension
  * runs per frame and must be pure, or decoration would stop being a function of
  * state.
+ *
+ * For [SyntaxExtension.recogniseInline] the range is the inline run being scanned.
+ * For [SyntaxExtension.recogniseBlocks] it is the *candidate* block — the run of
+ * non-blank lines starting where a block begins. An extension returning a match
+ * narrows that candidate to the construct it actually claims.
  */
 public data class BlockContext(
     val text: CharSequence,
@@ -77,8 +82,30 @@ public interface SyntaxExtension {
      */
     public fun recogniseInline(context: BlockContext): List<InlineRange> = emptyList()
 
-    /**
+/**
      * Recognises a block-level construct within [context].
+     *
+     * Asked **before** the library decides what a block is, so a match wins over
+     * every built-in rule. That precedence is the point: a callout is a block quote
+     * to Markdown, and a host can only turn `> [!note]` into a callout if it is
+     * allowed to claim a block the library would otherwise have read as a quote. The
+     * cost of that choice is that a badly-written extension can shadow Markdown
+     * wholesale, which is the trade a host opts into by registering one.
+     *
+     * [context] spans the candidate block — the run of non-blank lines starting where
+     * a block begins — not the whole document, so an extension can see a
+     * multi-line construct without scanning the file. Return a match only if the
+     * construct is really there: returning one for every candidate would mean this
+     * function, not the parser, decides where blocks are.
+     *
+     * The returned range is authoritative twice over: it is the block's extent, and
+     * it is where the scanner resumes. Narrow it to claim part of the candidate and
+     * the rest is parsed as Markdown.
+     *
+     * [BlockMatch.ownsTerminator] says whether the closing delimiter is inside the
+     * returned range. When it is `false` the library resumes past the end of that
+     * line, so a construct whose closing delimiter you deliberately excluded is
+     * still consumed rather than being rescanned and matched again.
      *
      * The default is empty, so an extension that only adds inline syntax does not
      * have to think about blocks at all.
@@ -90,8 +117,8 @@ public interface SyntaxExtension {
  * A match plus the extension that produced it, kept for diagnostics.
  */
 public data class ResolvedMatch(
-    val extensionId: String,
-    val range: InlineRange,
+    public val extensionId: String,
+    public val range: InlineRange,
 )
 
 /**
@@ -105,16 +132,53 @@ public data class ResolvedMatch(
  */
 public fun resolveMatches(
     candidates: List<Pair<SyntaxExtension, InlineRange>>,
-): List<ResolvedMatch> {
+): List<ResolvedMatch> =
+    resolveOverlaps(candidates) { it }
+        .map { (extension, range) -> ResolvedMatch(extension.id, range) }
+
+/** A block match plus the extension that claimed it. */
+public data class ResolvedBlockMatch(
+    public val extensionId: String,
+    public val match: BlockMatch,
+)
+
+/**
+ * Resolves overlapping *block* matches, by the same rule as [resolveMatches]: longest
+ * match first, then priority, then id.
+ *
+ * Block matches need their own entry point only because they carry a second field;
+ * the ordering itself is shared, so an extension cannot behave differently at block
+ * level than at inline level.
+ */
+public fun resolveBlockMatches(
+    candidates: List<Pair<SyntaxExtension, BlockMatch>>,
+): List<ResolvedBlockMatch> =
+    resolveOverlaps(candidates) { it.range }
+        .map { (extension, match) -> ResolvedBlockMatch(extension.id, match) }
+
+/**
+ * Drops overlapping candidates, most specific first, and returns the survivors with
+ * their extensions in document order.
+ *
+ * Both resolution rules live here so the two cannot drift: same length order, same
+ * priority tiebreak, same final sort.
+ */
+private fun <M> resolveOverlaps(
+    candidates: List<Pair<SyntaxExtension, M>>,
+    rangeOf: (M) -> InlineRange,
+): List<Pair<SyntaxExtension, M>> {
     val sorted = candidates.sortedWith(
-        compareByDescending<Pair<SyntaxExtension, InlineRange>> { (_, range) -> range.end - range.start }
+        compareByDescending<Pair<SyntaxExtension, M>> { (_, candidate) ->
+            rangeOf(candidate).end - rangeOf(candidate).start
+        }
             .thenByDescending { (extension, _) -> extension.priority }
             .thenBy { (extension, _) -> extension.id },
     )
-    val accepted = mutableListOf<ResolvedMatch>()
-    for ((extension, range) in sorted) {
-        val clashes = accepted.any { it.range.start < range.end && range.start < it.range.end }
-        if (!clashes) accepted += ResolvedMatch(extension.id, range)
+    val accepted = mutableListOf<Pair<SyntaxExtension, M>>()
+    for (candidate in sorted) {
+        val range = rangeOf(candidate.second)
+        val clashes = accepted.any { rangeOf(it.second).let { r -> r.start < range.end && range.start < r.end } }
+        if (!clashes) accepted += candidate
     }
-    return accepted.sortedBy { it.range.start }
+    return accepted.sortedBy { rangeOf(it.second).start }
 }

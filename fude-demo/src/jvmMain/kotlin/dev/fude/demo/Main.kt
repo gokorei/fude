@@ -63,13 +63,19 @@ private class MentionSyntax : SyntaxExtension {
 }
 
 /** A block construct the library has no built-in knowledge of. */
-private class CalloutSyntax : SyntaxExtension {
+/**
+ * The demo's block-level dialect: `> [!note]` is a callout, not a block quote.
+ *
+ * Internal rather than private so `CalloutSyntaxTest` can drive the real class
+ * through the real parser. A demo construct nothing can reach is exactly the thing
+ * that silently stops working.
+ */
+internal class CalloutSyntax : SyntaxExtension {
     override val id: String = "callout"
 
     override fun recogniseBlocks(context: BlockContext): List<BlockMatch> {
         val text = context.content.toString()
         if (!text.startsWith("> [!note]")) return emptyList()
-        val closing = text.lastIndexOf("\n>")
         return listOf(
             BlockMatch(
                 range = dev.fude.core.InlineRange(context.range.start, context.range.start + text.length),
@@ -79,7 +85,7 @@ private class CalloutSyntax : SyntaxExtension {
     }
 }
 
-private val sampleDocument = """
+internal val sampleDocument = """
     # Fude
 
     A live-preview Markdown editor. Type Markdown and the formatted result

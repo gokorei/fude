@@ -179,8 +179,16 @@ public data class ThematicBreakNode(override val range: InlineRange) : BlockNode
 /** A block a host extension claimed. Fude does not know what it means. */
 public data class HostBlockNode(
     override val range: InlineRange,
-    val extensionId: String,
     override val inlines: List<InlineNode>,
+    val extensionId: String,
+    /**
+     * Whether this construct's closing delimiter is inside [range].
+     *
+     * Mirrored from [dev.fude.syntax.BlockMatch.ownsTerminator] so a host, a
+     * decorator or a diagnostic can see the decision without holding on to the
+     * extension that made it.
+     */
+    val ownsTerminator: Boolean = true,
 ) : BlockNode {
     override val kind: BlockKind get() = BlockKind.HOST_DEFINED
 }

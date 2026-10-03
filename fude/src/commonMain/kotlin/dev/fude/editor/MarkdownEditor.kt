@@ -26,6 +26,7 @@ import dev.fude.markdown.BlockNode
 import dev.fude.markdown.BlockViewState
 import dev.fude.markdown.CodeFenceNode
 import dev.fude.markdown.EmphasisNode
+import dev.fude.markdown.HostBlockNode
 import dev.fude.markdown.HostInlineNode
 import dev.fude.markdown.IncrementalMarkdownParser
 import dev.fude.markdown.InlineNode
@@ -76,11 +77,14 @@ public fun MarkdownEditor(
     // selection and undo; this holds what Compose renders.
     val textState = rememberTextFieldState(state.text)
     val undo = remember { dev.fude.core.UndoStack() }
-    val parser = remember { IncrementalMarkdownParser() }
+    // Keyed on the extensions, not remembered once: a parser built without them can
+    // never produce a host-defined block, so a host that registers a dialect would
+    // get inline syntax it recognises and block syntax it silently does not.
+    val parser = remember(syntaxExtensions) { IncrementalMarkdownParser(syntaxExtensions) }
     val view = remember { BlockViewState() }
     val layoutCache = remember { LayoutCache() }
 
-    var parsed by remember { mutableStateOf(parser.parse(state.text)) }
+    var parsed by remember(syntaxExtensions) { mutableStateOf(parser.parse(state.text)) }
 
     // One effect does the whole per-keystroke pipeline, in order:
     //   1. mirror the field's text and selection into the pure model
@@ -219,6 +223,15 @@ private fun decorateBlock(
             // Opaque by construction. Nothing inside a fence is parsed, so nothing
             // inside it can be decorated as Markdown — which is exactly the point.
             addStyle(buffer, block.range, SpanStyle(color = Color(0xFF6A9955)))
+        }
+
+        is HostBlockNode -> {
+            // A construct the host claimed and the library has no opinion about.
+            // Tinting the whole block is what makes a callout visibly a callout; the
+            // library knows the block exists and nothing else about it, which is the
+            // whole arrangement.
+            addStyle(buffer, block.range, SpanStyle(background = Color(0x147A9E7E)))
+            for (inline in block.inlines) decorateInline(buffer, inline, config)
         }
 
         else -> {

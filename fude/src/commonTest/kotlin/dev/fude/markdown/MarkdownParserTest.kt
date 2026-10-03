@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MarkdownParserTest {
@@ -445,10 +446,188 @@ class MarkdownParserTest {
                 "offset $offset resolved to the wrong block",
             )
         }
-        val ruleOffset = text.lastIndexOf("---")   // not the table's own separator row
+val ruleOffset = text.lastIndexOf("---")   // not the table's own separator row
         assertTrue(
             doc.blockAt(ruleOffset) is ThematicBreakNode,
             "an offset on the break must resolve to the break, not the table",
         )
+    }
+
+    // ------------------------------------------------ block-level host extensions
+
+    /**
+     * The wiring test, and the only one that matters for this feature.
+     *
+     * `SyntaxExtensionTest` in `:fude-core` calls `recogniseBlocks` directly and
+     * passes — which was true for as long as the parser never called it at all. A
+     * tested unit with untested wiring: the suite was green and the feature was
+     * dead. So this goes through `IncrementalMarkdownParser`, which is the only
+     * place the question "does anything invoke it?" can be asked.
+     */
+    @Test
+    fun aHostExtensionCanClaimABlockTheLibraryWouldOtherwiseReadAsMarkdown() {
+        val text = "> [!note]\n> Careful here.\n\nA plain paragraph.\n"
+        val withoutExtension = parse(text).blocks
+        assertEquals(
+            BlockKind.BLOCK_QUOTE,
+            withoutExtension.first().kind,
+            "with no extension the library reads it as a block quote, as it always did",
+        )
+
+        val withExtension = parse(text, listOf(CalloutSyntax())).blocks
+        val host = assertIs<HostBlockNode>(withExtension.first())
+        assertEquals("callout", host.extensionId)
+        assertEquals(
+            "> [!note]\n> Careful here.\n",
+            text.substring(host.range.start, host.range.end),
+            "the extension's range is the block's extent",
+        )
+        assertEquals(
+            listOf(BlockKind.HOST_DEFINED, BlockKind.PARAGRAPH),
+            withExtension.map { it.kind },
+            "the construct is claimed, and the paragraph after it is still Markdown",
+        )
+    }
+
+    @Test
+    fun anExtensionMatchWinsOverTheBuiltInRule() {
+        // A callout is a block quote to Markdown. If a built-in rule won, no host
+        // could ever redefine anything the library already understands, and the
+        // extension point would be limited to syntax the library has never seen.
+        val text = "> [!warning]\n> Careful.\n"
+        assertEquals(
+            listOf(BlockKind.HOST_DEFINED),
+            parse(text, listOf(CalloutSyntax())).blocks.map { it.kind },
+        )
+        // And an extension that declines leaves the built-in reading alone.
+        assertEquals(
+            listOf(BlockKind.BLOCK_QUOTE),
+            parse("> an ordinary quote\n", listOf(CalloutSyntax())).blocks.map { it.kind },
+        )
+    }
+
+    /**
+     * `ownsTerminator` decides whether the closing delimiter is inside the block.
+     *
+     * When an extension reports content only and says so, the library resumes past
+     * the end of that line so the delimiter is consumed rather than rescanned — which
+     * is what stops a construct whose own terminator it excluded from matching itself
+     * again on the next iteration.
+     */
+    @Test
+    fun ownsTerminatorIsHonouredInBothDirections() {
+        val owning = ":::warning\nbe careful\n:::\n\nafter\n"
+        val owningBlocks = parse(owning, listOf(FencedSyntax(ownsTerminator = true))).blocks
+        assertEquals(BlockKind.HOST_DEFINED, owningBlocks.first().kind)
+        assertEquals(
+            ":::warning\nbe careful\n:::",
+            owning.substring(0, owningBlocks.first().range.end),
+            "owning the terminator puts the closing fence inside the block",
+        )
+        assertEquals(
+            BlockKind.PARAGRAPH,
+            owningBlocks[1].kind,
+            "the closing fence was consumed, so the next block is the paragraph",
+        )
+
+        val disowning = ":::warning\nbe careful\n:::\n\nafter\n"
+        val disowningBlocks = parse(disowning, listOf(FencedSyntax(ownsTerminator = false))).blocks
+        val host = assertIs<HostBlockNode>(disowningBlocks.first())
+        assertEquals(
+            ":::warning\nbe careful",
+            disowning.substring(host.range.start, host.range.end),
+            "the range covers content only",
+        )
+        assertFalse(
+            host.ownsTerminator,
+            "and the node says so, rather than the caller having to remember",
+        )
+        assertEquals(
+            BlockKind.PARAGRAPH,
+            disowningBlocks[1].kind,
+            "the unowned terminator must not be rescanned into the same construct",
+        )
+    }
+
+    /**
+     * The incremental path has to behave like the full one, or a callout survives
+     * being loaded and then vanishes or doubles on the next keystroke somewhere else
+     * in the document.
+     */
+    @Test
+    fun anExtensionMatchSurvivesAnEditElsewhereAndIsRerecognisedWhenItselfEdited() {
+        val text = "> [!note]\n> Careful.\n\nFirst paragraph.\n\nSecond paragraph.\n"
+        val parser = IncrementalMarkdownParser(listOf(CalloutSyntax()))
+        parser.parse(text)
+        assertEquals(BlockKind.HOST_DEFINED, parser.parse(text).blocks.first().kind)
+
+        // An edit far below: the callout must survive untouched.
+        val tail = text.indexOf("Second paragraph")
+        val editedBelow = text.substring(0, tail) + "Second paragraph changed.\n"
+        val afterBelow = parser.reparse(editedBelow, dev.fude.core.Insert(tail, ""))
+        assertEquals(
+            BlockKind.HOST_DEFINED,
+            afterBelow.blocks.first().kind,
+            "an edit elsewhere must not cost the callout",
+        )
+
+        // An edit inside it: it must be recognised again, not dropped.
+        val inside = text.indexOf("Careful")
+        val editedInside = text.substring(0, inside) + "Careful indeed.\n" + text.substring(text.indexOf(".\n", inside) + 2)
+        val afterInside = parser.reparse(editedInside, dev.fude.core.Insert(inside, " indeed"))
+        assertEquals(
+            BlockKind.HOST_DEFINED,
+            afterInside.blocks.first().kind,
+            "editing the callout's body must re-recognise it",
+        )
+        assertEquals(
+            IncrementalMarkdownParser(listOf(CalloutSyntax())).parse(editedInside).blocks.map { it.kind },
+            afterInside.blocks.map { it.kind },
+            "and the incremental result must match a full parse",
+        )
+    }
+
+    @Test
+    fun noExtensionRegisteredMeansNoHostDefinedBlocks() {
+        val blocks = parse("> [!note]\n> Careful.\n").blocks
+        assertTrue(
+            blocks.none { it is HostBlockNode },
+            "the boundary that gives the extension point its meaning: with nothing " +
+                "registered the library knows nothing host-specific",
+        )
+    }
+
+    /** `> [!note]` and its body, which is what the demo ships. */
+    private class CalloutSyntax : SyntaxExtension {
+        override val id: String = "callout"
+
+        override fun recogniseBlocks(context: dev.fude.syntax.BlockContext): List<dev.fude.syntax.BlockMatch> {
+            val text = context.content.toString()
+            if (!text.startsWith("> [!")) return emptyList()
+            return listOf(
+                dev.fude.syntax.BlockMatch(
+                    range = InlineRange(context.range.start, context.range.end),
+                    ownsTerminator = false,
+                ),
+            )
+        }
+    }
+
+    /** A `:::`-fenced construct, for pinning [dev.fude.syntax.BlockMatch.ownsTerminator]. */
+    private class FencedSyntax(private val ownsTerminator: Boolean) : SyntaxExtension {
+        override val id: String = "fenced"
+
+        override fun recogniseBlocks(context: dev.fude.syntax.BlockContext): List<dev.fude.syntax.BlockMatch> {
+            val text = context.content.toString()
+            if (!text.startsWith(":::")) return emptyList()
+            val closing = text.lastIndexOf(":::")
+            if (closing <= 0) return emptyList()
+            val end = if (ownsTerminator) {
+                context.range.start + closing + 3
+            } else {
+                context.range.start + text.lastIndexOf('\n', closing)
+            }
+            return listOf(dev.fude.syntax.BlockMatch(InlineRange(context.range.start, end), ownsTerminator))
+        }
     }
 }

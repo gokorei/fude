@@ -4,6 +4,7 @@ import dev.fude.core.InlineRange
 import dev.fude.syntax.BlockContext
 import dev.fude.syntax.BlockMatch
 import dev.fude.syntax.SyntaxExtension
+import dev.fude.syntax.resolveBlockMatches
 import dev.fude.syntax.resolveMatches
 
 /**
@@ -146,13 +147,11 @@ public class IncrementalMarkdownParser(
         }
 
         val reusableTail = previous.blocks.drop(firstAffected + 1)
-        if (!tailSurvivesShift(reusableTail, delta, text.length)) return parse(text)
-
         val boundary = previous.blocks[firstAffected].range.start
-        val shiftedTail = reusableTail.map { shiftBlock(it, delta) }
+        val oldEnd = previous.blocks[firstAffected].range.end
 
         // Reparse forward until we have covered the old affected block's extent.
-        val targetEnd = (previous.blocks[firstAffected].range.end + delta).coerceIn(0, text.length)
+        val targetEnd = (oldEnd + delta).coerceIn(0, text.length)
 
         // Stop at the last non-whitespace character, not at `text.length`.
         //
@@ -187,15 +186,51 @@ public class IncrementalMarkdownParser(
             if (cursor >= targetEnd) break
         }
 
-        // If the reparse ran past where the shifted tail begins, the edit merged
-        // blocks and the tail has been re-parsed already. Reusing it would duplicate.
-        val tailStart = shiftedTail.firstOrNull()?.range?.start
-        val tailConsumed = tailStart != null && cursor > tailStart
+        // The tail moves by the edit's delta, which is exact: everything before it is
+        // either untouched or re-parsed, and the total length change is `delta`.
+        // What is *not* exact is how far the reparse actually got, so the tail is
+        // reconciled against [cursor] rather than assumed to start where it used to.
+        if (!tailSurvivesShift(reusableTail, delta, text.length)) {
+            // The tail no longer fits in the new document, so nothing below this
+            // point can be trusted to have survived unchanged. Reparse it rather
+            // than shift it — correct, and rare, because a keystroke's delta is small.
+            // Nothing to reparse once the cursor has reached the document's real end.
+            // `parseBlocks` is written to always yield one block so the renderer has
+            // something to lay out, which at end-of-document means inventing an empty
+            // paragraph covering a newline that is not there.
+            val reparsedRest =
+                if (cursor >= contentEnd) emptyList()
+                else parseBlocks(text, cursor, contentEnd, countBlocks = true)
+            cached = ParsedDocument(text, document + reparsedRest)
+            return cached
+        }
 
-        cached = ParsedDocument(
-            text = text,
-            blocks = if (tailConsumed) document else document + shiftedTail,
-        )
+        // Keep only the part of the tail the reparse did not already cover.
+        //
+        // Testing only the tail's *start* is not enough, and was a real bug: a
+        // reparsed block can span across that start and stop in the middle of a
+        // shifted block, and dropping the tail then silently loses everything below
+        // it. A host extension claiming a block is what produces that shape, because
+        // the claim can change how far one block reaches.
+        val shiftedTail = reusableTail.map { shiftBlock(it, delta) }
+        val overlapsReparsed = shiftedTail.any { it.range.start < cursor && it.range.end > cursor }
+        if (overlapsReparsed) {
+            // The reparse covered part of a block we shifted, so the two disagree
+            // about where that block begins and neither can be trusted. Reparse.
+            // Nothing to reparse once the cursor has reached the document's real end.
+            // `parseBlocks` is written to always yield one block so the renderer has
+            // something to lay out, which at end-of-document means inventing an empty
+            // paragraph covering a newline that is not there.
+            val reparsedRest =
+                if (cursor >= contentEnd) emptyList()
+                else parseBlocks(text, cursor, contentEnd, countBlocks = true)
+            cached = ParsedDocument(text, document + reparsedRest)
+            return cached
+        }
+
+        val remaining = shiftedTail.filter { it.range.end > cursor }
+
+        cached = ParsedDocument(text, document + remaining)
         return cached
     }
 
@@ -316,6 +351,65 @@ private class BlockStep(
 )
 
 /**
+     * Asks the registered extensions whether one of them owns the block at [from].
+     *
+     * Asked before any built-in rule, and a match wins, because that is the only way
+     * a host can turn something Markdown already understands into something else: a
+     * callout *is* a block quote until the host says otherwise.
+     *
+     * The context spans the candidate block — the run of non-blank lines starting at
+     * [from] — rather than the document, so a multi-line construct is visible without
+     * an extension having to scan the file. The extension's returned range is then
+     * authoritative for both the block's extent and where scanning resumes.
+     *
+     * @return the step, or null when no extension claims this block.
+     */
+    private fun hostBlockStepAt(text: String, from: Int, end: Int): BlockStep? {
+        if (extensions.isEmpty()) return null
+        val candidateEnd = endOfLineRun(text, from, end)
+        if (candidateEnd <= from) return null
+
+        val candidates = extensions.flatMap { extension ->
+            extension
+                .recogniseBlocks(BlockContext(text, InlineRange(from, candidateEnd)))
+                .filter { it.range.start >= from && it.range.end <= candidateEnd && it.range.end > it.range.start }
+                .map { extension to it }
+        }
+        val winner = resolveBlockMatches(candidates).firstOrNull() ?: return null
+        val match = winner.match
+        val resume = if (match.ownsTerminator) {
+            match.range.end
+        } else {
+            // The extension reported content only, deliberately leaving its closing
+            // delimiter out of the range. Resume past the end of that line so the
+            // delimiter is consumed with the construct rather than rescanned, which
+            // would match the same construct again and loop.
+            pastLineTerminator(text, match.range.end, end)
+        }
+        if (resume <= from) return null
+        return BlockStep(
+            block = HostBlockNode(
+                range = match.range,
+                inlines = parseInline(text, match.range.start, match.range.end),
+                extensionId = winner.extensionId,
+                ownsTerminator = match.ownsTerminator,
+            ),
+            next = resume,
+        )
+    }
+
+    /** The end of the run of non-blank lines starting at [from], or [from] if none. */
+    private fun endOfLineRun(text: String, from: Int, end: Int): Int {
+        var cursor = from
+        while (cursor < end) {
+            val lineEnd = lineEndAt(text, cursor, end)
+            if (text.substring(cursor, lineEnd).isBlank()) break
+            cursor = pastLineTerminator(text, lineEnd, end)
+        }
+        return cursor
+    }
+
+    /**
      * Parses the single block starting at [from], and stops there.
      *
      * This is the unit the incremental path is built on, so it must not read past
@@ -336,6 +430,8 @@ private class BlockStep(
 
         fun step(block: BlockNode?, next: Int, replacesPrevious: Boolean = false) =
             BlockStep(block, next, replacesPrevious)
+
+        hostBlockStepAt(text, from, end)?.let { return it }
 
         return when {
             line.isBlank() -> step(null, skipNewline(text, lineEnd, end))

@@ -18,6 +18,14 @@ kotlin {
             implementation(libs.compose.ui.tooling.preview)
             implementation(libs.kotlinx.coroutines.swing)
         }
+        // The demo is a *host*, and the host's half of the extension point is the part
+        // that ships untested: `CalloutSyntax` implements `recogniseBlocks`, which no
+        // production code called until recently, so the demo's callouts silently did
+        // nothing while the demo's own README presented them as the worked example.
+        // This source set is what makes that impossible to reintroduce.
+        jvmTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 
