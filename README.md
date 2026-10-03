@@ -100,23 +100,59 @@ platform's own APIs.
 
 Stated plainly, because each is real work rather than a detail.
 
-1. **A keystroke into a large note costs far more than a frame.** Measured in a real
-   window on 2026-10-03: **34 ms at 2,000 lines, 66 ms at 4,000**, against a 42 ms
-   budget for 24 fps — so the crossover is **~2,500 lines**. The figures formerly
-   quoted here (110 ms at 5,000 lines, 186 ms decorated) came from a headless,
-   software-rendered harness at one size and should not be cited; `docs/spike.md` has
-   the correction and why the old numbers flattered the problem.
+### Large documents: slow, not wrong
 
-   The useful part is *where* the cost is. At 5,000 lines a bare `BasicTextField`
-   over the same text costs 53 ms; Fude's parse and decoration add 12. **Four fifths
-   of a keystroke is Compose laying out a field that knows nothing about Markdown**,
-   which is why the fix is block-level virtualization rather than a faster parser.
+A keystroke into a large note costs more than a frame. Measured in a real window
+(see [`docs/spike.md`](docs/spike.md) for the curve and the method):
 
-   Two caveats. Worst case at 5,000 lines was 159 ms against a 65 ms median, and a
-   user perceives the worst case. And the assumed even split between Skia's
-   intrinsic-shaping and constrained-layout passes is still **unverified** — it is
-   internal to Skiko and cannot be measured without forking it — so windowing still
-   rests on an assumption. Reproduce with `scripts/keystroke_sweep.sh`.
+| lines | keystroke, median | over the 42 ms budget for 24 fps? |
+|---|---|---|
+| 1,000 | 24 ms | no |
+| 2,000 | 34 ms | no |
+| 4,000 | 66 ms | yes |
+| 5,000 | 65 ms | yes, and the worst case was 159 ms |
+
+The crossover is **~2,500 lines**. Four fifths of that cost is Compose laying out a
+`BasicTextField` over the whole document; Fude's parse and decoration add 12 ms at
+5,000 lines. The fix is block-level virtualization, which is not built yet — see
+`SH1QX2AD`. What *is* built is the ceiling below.
+
+### The document-size ceiling
+
+`Fude.PERFORMANCE_CEILING_LINES` is **2,500**, from the crossover above. Cross it and
+`MarkdownEditor` invokes `onPerformanceWarning` once, on the transition, so a host can
+show a banner without debouncing:
+
+```kotlin
+MarkdownEditor(state = state, onPerformanceWarning = { warning ->
+    if (warning.overCeiling) showBanner("${warning.lineCount} lines — typing may lag")
+})
+```
+
+**This is a performance limit, not a correctness limit.** A document of any size still
+opens, renders and edits exactly, with no truncation and no dropped blocks. Nothing is
+refused and nothing is degraded; the editor is simply slower. Do not read the ceiling
+as "notes above this size are unreliable".
+
+The number is deliberately just under the crossover, because a user feels the worst
+case and the worst case at 5,000 lines was 159 ms against a 65 ms median. It is also
+bracketed rather than precise: the two largest points of the curve differ by 1 ms.
+Hosts that know their users better can override it per editor via
+`EditorConfig.performanceCeilingLines`.
+
+### Everything else
+
+1. **Undo grouping is implemented and tested but not yet fed from the platform
+   gesture path.** Compose reports whole-change diffs, so undo granularity is
+   currently whatever Compose reports.
+2. **IME composition** is modelled — intermediate updates produce no edits, a
+   commit produces exactly one — but the composable does not yet call it, and
+   verifying it needs a real CJK input source.
+3. **No iOS, Web or Wasm targets declared.** They need a machine with Xcode to
+   verify, and shipping unverified targets is worse than shipping none.
+4. **Visual-line arrow movement** is not implemented; `PositionMapper` carries the
+   data but nothing consumes it.
+5. **`Shift-Tab` list outdent** is not implemented.
 2. **Undo grouping is implemented and tested but not yet fed from the platform
    gesture path.** Compose reports whole-change diffs, so undo granularity is
    currently whatever Compose reports.

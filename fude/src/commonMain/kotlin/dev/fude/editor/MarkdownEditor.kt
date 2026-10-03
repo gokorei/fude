@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,6 +73,7 @@ public fun MarkdownEditor(
     syntaxExtensions: List<SyntaxExtension> = emptyList(),
     onChange: (String) -> Unit = {},
     onDecorationClick: ((Decoration) -> Unit)? = null,
+    onPerformanceWarning: (DocumentPerformanceWarning) -> Unit = {},
 ) {
     // The Compose-side text state. The pure model is the source of truth for
     // selection and undo; this holds what Compose renders.
@@ -85,6 +87,31 @@ public fun MarkdownEditor(
     val layoutCache = remember { LayoutCache() }
 
     var parsed by remember(syntaxExtensions) { mutableStateOf(parser.parse(state.text)) }
+
+    // The document's line count, kept current for the performance ceiling.
+    //
+    // Maintained from the changed span rather than recounted from the text: a
+    // keystroke inside a paragraph cannot add or remove a line, and the entire cost of
+    // this check has to be zero on the keystroke path or it is not free. The effect
+    // below already computes where the two texts diverge, so counting newlines from
+    // there is O(1) for a keystroke and O(paste) for a paste.
+    var lineCount by remember(syntaxExtensions) { mutableIntStateOf(state.text.count { it == '\n' } + 1) }
+
+    // `null` means "not yet reported", so the first evaluation always fires — a host
+    // that mounts on an already-over-ceiling document is told immediately rather than
+    // waiting for the user to cross a line they are already past.
+    var reportedOverCeiling by remember(syntaxExtensions) { mutableStateOf<Boolean?>(null) }
+
+    fun reportCeiling(count: Int, ceiling: Int) {
+        lineCount = count
+        val over = count > ceiling
+        // Fires on the transition only, so a host holding a banner needs no debounce
+        // and a user is not told the same thing sixty times a minute.
+        if (reportedOverCeiling != over) {
+            reportedOverCeiling = over
+            onPerformanceWarning(DocumentPerformanceWarning(count, ceiling, over))
+        }
+    }
 
     // One effect does the whole per-keystroke pipeline, in order:
     //   1. mirror the field's text and selection into the pure model
@@ -108,6 +135,10 @@ public fun MarkdownEditor(
         if (previous.text != current) {
             val delta = current.length - previous.text.length
             val editOffset = commonPrefixLength(previous.text, current)
+            reportCeiling(
+                lineCount - newlinesIn(previous.text, editOffset) + newlinesIn(current, editOffset),
+                config.performanceCeilingLines,
+            )
             val next = parser.reparse(current, Insert(editOffset, ""))
             parsed = next
             ToggleCoordinator.afterEdit(view, editOffset, delta, ToggleCoordinator.blockStarts(next.blocks))
@@ -136,9 +167,29 @@ public fun MarkdownEditor(
         }
     }
 
+    // The load-path report. Keyed on the ceiling only, so it runs once when the editor
+    // appears and again if the host changes the ceiling — never on a keystroke, which
+    // is what the incremental update in the per-keystroke effect is for.
+    //
+    // It has to exist separately: on first composition the field already holds
+    // `state.text`, so the swap-detection effect below sees nothing to do and the user
+    // would never be told about a document that was over the ceiling from the start.
+    LaunchedEffect(config.performanceCeilingLines) {
+        reportCeiling(state.text.count { it == '\n' } + 1, config.performanceCeilingLines)
+    }
+
     // Push the model's text back when the host changes it, e.g. loading a document.
-    LaunchedEffect(state.text) {
+    LaunchedEffect(state.text, config.performanceCeilingLines) {
         if (state.text != textState.text.toString()) {
+            // The host swapped documents, so the count is recounted from the text.
+            //
+            // This effect is keyed on `state.text`, which changes on every keystroke,
+            // so the recount is guarded by the same condition as the replace: on a
+            // keystroke the field already holds this text and there is nothing to do.
+            // Unconditionally recounting here would put an O(n) scan on the exact path
+            // this whole mechanism exists to stay off — and the incremental update
+            // above already keeps the count correct for ordinary edits.
+            reportCeiling(state.text.count { it == '\n' } + 1, config.performanceCeilingLines)
             val replacement = state.text
             textState.edit { replace(0, length, replacement) }
         }
@@ -303,6 +354,13 @@ private fun addStyle(
     val end = range.end.coerceIn(start, buffer.length)
     if (end <= start) return
     buffer.addStyle(style, start, end)
+}
+
+/** Newlines from [from] to the end. The span a keystroke touches is one character. */
+private fun newlinesIn(text: String, from: Int): Int {
+    var count = 0
+    for (i in maxOf(from, 0) until text.length) if (text[i] == '\n') count++
+    return count
 }
 
 /** How many characters two strings share from the start. */

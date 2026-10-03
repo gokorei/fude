@@ -281,4 +281,123 @@ class MarkdownEditorRenderTest {
             "and at the end of it, which is where 9 clamps to in an 8-character document",
         )
     }
+
+    // ------------------------------------------------- the performance ceiling
+
+    /**
+     * The ceiling is a performance statement, so the assertion that matters is that
+     * an over-ceiling document is still *correct* — not that it is fast, which nothing
+     * here can measure, and not that it is refused, which would cost a user their work.
+     */
+    @Test
+    fun anOverCeilingDocumentIsReportedAndStillEditsExactly() {
+        val ceiling = 50
+        val text = (0 until 400).joinToString("\n\n") { "Paragraph $it with **bold**." }
+        val lines = text.count { it == '\n' } + 1
+        val state = EditorState.of(text)
+        val warnings = mutableListOf<DocumentPerformanceWarning>()
+
+        rule.setContent {
+            MarkdownEditor(
+                state = state,
+                config = EditorConfig(performanceCeilingLines = ceiling),
+                onPerformanceWarning = { warnings += it },
+            )
+        }
+        rule.waitForIdle()
+
+        assertEquals(
+            listOf(DocumentPerformanceWarning(lines, ceiling, overCeiling = true)),
+            warnings,
+            "reported once, with the document's real line count",
+        )
+        assertEquals(text, state.text, "rendering must not touch the text")
+
+        rule.runOnIdle { state.applyEdit("# inserted\n\n$text", CoreTextRange(0, 0)) }
+        rule.waitForIdle()
+        assertTrue(state.text.startsWith("# inserted"), "the edit landed")
+        assertEquals(text.length + 12, state.text.length, "adding exactly its own characters")
+    }
+
+    @Test
+    fun aDocumentUnderTheCeilingIsReportedOnceAndSaysItIsFine() {
+        val text = (0 until 10).joinToString("\n\n") { "Paragraph $it." }
+        val warnings = mutableListOf<DocumentPerformanceWarning>()
+        rule.setContent {
+            MarkdownEditor(
+                state = EditorState.of(text),
+                config = EditorConfig(performanceCeilingLines = 500),
+                onPerformanceWarning = { warnings += it },
+            )
+        }
+        rule.waitForIdle()
+        assertEquals(
+            listOf(DocumentPerformanceWarning(text.count { it == '\n' } + 1, 500, overCeiling = false)),
+            warnings,
+        )
+    }
+
+    /** Fires on the transition, not per keystroke, so a host needs no debounce. */
+    @Test
+    fun theWarningFiresOnTransitionRatherThanOnEveryKeystroke() {
+        val ceiling = 20
+        val state = EditorState.of("one\n\ntwo\n\nthree")
+        val warnings = mutableListOf<DocumentPerformanceWarning>()
+        rule.setContent {
+            MarkdownEditor(
+                state = state,
+                config = EditorConfig(performanceCeilingLines = ceiling),
+                onPerformanceWarning = { warnings += it },
+            )
+        }
+        rule.waitForIdle()
+        assertEquals(1, warnings.size, "the initial report")
+
+        repeat(5) {
+            val at = state.text.length
+            rule.runOnIdle { state.applyEdit(state.text + "x", CoreTextRange(at, at)) }
+            rule.waitForIdle()
+        }
+        assertEquals(1, warnings.size, "no repeat while the status is unchanged; got $warnings")
+
+        val big = (0 until 40).joinToString("\n\n") { "Paragraph $it." }
+        rule.runOnIdle { state.applyEdit(big, CoreTextRange(0, 0)) }
+        rule.waitForIdle()
+        assertEquals(2, warnings.size, "one report on crossing")
+        assertTrue(warnings.last().overCeiling)
+        assertEquals(big.count { it == '\n' } + 1, warnings.last().lineCount, "with the real line count")
+    }
+
+    /**
+     * Typing inside a line cannot change the line count, so nothing should be
+     * reported — and the O(1) span check is what makes that true without an O(n)
+     * recount on the keystroke path.
+     */
+    @Test
+    fun editingWithinALineNeverReports() {
+        val state = EditorState.of("alpha\n\nbeta\n\ngamma")
+        val warnings = mutableListOf<DocumentPerformanceWarning>()
+        rule.setContent {
+            MarkdownEditor(
+                state = state,
+                config = EditorConfig(performanceCeilingLines = 3),
+                onPerformanceWarning = { warnings += it },
+            )
+        }
+        rule.waitForIdle()
+        assertEquals(1, warnings.size)
+
+        rule.onNodeWithTag(TAG_EDITOR).performTextInput("!")
+        rule.waitForIdle()
+
+        // The caret defaults to the end of the document, so typing appends there.
+        assertEquals("alpha\n\nbeta\n\ngamma!", state.text)
+        assertEquals(1, warnings.size, "no line was added, so nothing changed to report")
+    }
+
+    @Test
+    fun thePublishedCeilingIsTheMeasuredOne() {
+        // Guard against someone "tidying" the constant back to a round guess.
+        assertEquals(2_500, Fude.PERFORMANCE_CEILING_LINES)
+    }
 }

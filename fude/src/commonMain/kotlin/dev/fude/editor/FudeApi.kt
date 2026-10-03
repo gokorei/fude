@@ -24,6 +24,25 @@ import dev.fude.syntax.SyntaxExtension
  */
 public object Fude {
     public const val VERSION: String = "0.1.0"
+
+    /**
+     * Lines above which a keystroke may stop feeling immediate.
+     *
+     * Measured, not guessed. The real-window sweep in `docs/spike.md` puts a
+     * keystroke at 34 ms median on 2,000 lines and 66 ms on 4,000, against a 42 ms
+     * budget for 24 fps — so the crossover sits between them, at roughly 2,500. This
+     * is set just under it, because the figure a user feels is the worst case and
+     * the worst case at 5,000 lines was 159 ms against a 65 ms median.
+     *
+     * That worst-case spread is the other reason not to treat this as precise. The
+     * two largest points of the curve differ by 1 ms, so "2,500" is a bracketing
+     * statement rather than a measurement.
+     *
+     * **A performance statement, not a correctness limit.** A document of any size
+     * still opens, renders and edits exactly. Hosts that know their users better can
+     * override [EditorConfig.performanceCeilingLines].
+     */
+    public const val PERFORMANCE_CEILING_LINES: Int = 2_500
 }
 
 /** A styled run, and optionally what happens when it is clicked. */
@@ -110,4 +129,31 @@ public data class EditorConfig(
     val maxLines: Int = Int.MAX_VALUE,
     val readOnly: Boolean = false,
     val placeholder: String? = null,
+    /**
+     * Lines above which keystrokes may feel sluggish, defaulting to
+     * [Fude.PERFORMANCE_CEILING_LINES].
+     *
+     * Crossing it produces a [DocumentPerformanceWarning] through
+     * [MarkdownEditor]'s `onPerformanceWarning`. It changes nothing about what the
+     * editor will do.
+     */
+    val performanceCeilingLines: Int = Fude.PERFORMANCE_CEILING_LINES,
+)
+
+/**
+ * Reports that a document has reached the size at which keystrokes may feel sluggish.
+ *
+ * A performance statement made honestly rather than a limit. Fude does not refuse the
+ * document, truncate it, drop blocks from it or degrade the text: an over-ceiling note
+ * is slow and completely correct, and a user told which is which can act on it.
+ *
+ * @property lineCount the document's line count when the check last ran.
+ * @property ceilingLines the ceiling in force at that moment.
+ * @property overCeiling whether the document was above it.
+ */
+@Immutable
+public data class DocumentPerformanceWarning(
+    val lineCount: Int,
+    val ceilingLines: Int,
+    val overCeiling: Boolean,
 )
