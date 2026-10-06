@@ -1,0 +1,54 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$!trimmed.all { it == '|' || it == '-' || it == ':' || it == ' ' }</ID>
+    <ID>ComplexCondition:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$i &gt; 0 &amp;&amp; i + 1 &lt; rest.length &amp;&amp; (rest[i] == '.' || rest[i] == ')')</ID>
+    <ID>ComplexCondition:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$i &gt; 0 &amp;&amp; i + 1 &lt; rest.length &amp;&amp; (rest[i] == '.' || rest[i] == ')') &amp;&amp; rest[i + 1] == ' '</ID>
+    <ID>CyclomaticComplexMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun isListMarker(line: String): Int?</ID>
+    <ID>CyclomaticComplexMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBlockAt( text: String, from: Int, end: Int, previous: BlockNode?, ): BlockStep</ID>
+    <ID>CyclomaticComplexMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBlocks( text: String, start: Int, end: Int, countBlocks: Boolean = false, ): List&lt;BlockNode&gt;</ID>
+    <ID>CyclomaticComplexMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBuiltInInline(text: String, start: Int, end: Int): List&lt;InlineNode&gt;</ID>
+    <ID>CyclomaticComplexMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseList(text: String, start: Int, end: Int): Pair&lt;Int, ListNode&gt;</ID>
+    <ID>CyclomaticComplexMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$public fun reparse(text: String, edit: dev.fude.core.Edit): ParsedDocument</ID>
+    <ID>CyclomaticComplexMethod:MarkdownEditor.kt$@Composable public fun MarkdownEditor( state: EditorState, modifier: Modifier = Modifier, config: EditorConfig = EditorConfig(), syntaxExtensions: List&lt;SyntaxExtension&gt; = emptyList(), undo: dev.fude.core.UndoController = remember { dev.fude.core.UndoStack() }, view: BlockViewState = remember { BlockViewState() }, onChange: (String) -&gt; Unit = {}, decorations: List&lt;Decoration&gt; = emptyList(), onDecorationClick: ((Decoration) -&gt; Unit)? = null, )</ID>
+    <ID>CyclomaticComplexMethod:TansekiFunctionalTest.kt$Json$fun parseObject(body: String): Map&lt;String, String&gt;</ID>
+    <ID>InvalidRange:ViewAndLayoutTest.kt$VisualMappingTest$1..0</ID>
+    <ID>LargeClass:IncrementalMarkdownParser.kt$IncrementalMarkdownParser</ID>
+    <ID>LargeClass:MarkdownParserTest.kt$MarkdownParserTest</ID>
+    <ID>LongMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBlockAt( text: String, from: Int, end: Int, previous: BlockNode?, ): BlockStep</ID>
+    <ID>LongMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBuiltInInline(text: String, start: Int, end: Int): List&lt;InlineNode&gt;</ID>
+    <ID>LongMethod:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$public fun reparse(text: String, edit: dev.fude.core.Edit): ParsedDocument</ID>
+    <ID>LongMethod:MarkdownEditor.kt$@Composable public fun MarkdownEditor( state: EditorState, modifier: Modifier = Modifier, config: EditorConfig = EditorConfig(), syntaxExtensions: List&lt;SyntaxExtension&gt; = emptyList(), undo: dev.fude.core.UndoController = remember { dev.fude.core.UndoStack() }, view: BlockViewState = remember { BlockViewState() }, onChange: (String) -&gt; Unit = {}, decorations: List&lt;Decoration&gt; = emptyList(), onDecorationClick: ((Decoration) -&gt; Unit)? = null, )</ID>
+    <ID>LongParameterList:MarkdownEditor.kt$( state: EditorState, modifier: Modifier = Modifier, config: EditorConfig = EditorConfig(), syntaxExtensions: List&lt;SyntaxExtension&gt; = emptyList(), undo: dev.fude.core.UndoController = remember { dev.fude.core.UndoStack() }, view: BlockViewState = remember { BlockViewState() }, onChange: (String) -&gt; Unit = {}, decorations: List&lt;Decoration&gt; = emptyList(), onDecorationClick: ((Decoration) -&gt; Unit)? = null, )</ID>
+    <ID>LoopWithTooManyJumpStatements:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$while</ID>
+    <ID>LoopWithTooManyJumpStatements:KeystrokeBudgetTest.kt$KeystrokeBudgetTest$while</ID>
+    <ID>LoopWithTooManyJumpStatements:LargeDocumentProbe.kt$LargeDocumentProbe$while</ID>
+    <ID>LoopWithTooManyJumpStatements:TansekiFunctionalTest.kt$Json$while</ID>
+    <ID>LoopWithTooManyJumpStatements:VisualToSourceMapper.kt$VisualToSourceMapper$for</ID>
+    <ID>MaxLineLength:BlockNode.kt$CodeFenceNode$if (contentRange.start &lt; contentRange.end) text.subSequence(contentRange.start, contentRange.end).toString() else ""</ID>
+    <ID>MaxLineLength:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$is BlockQuoteNode -&gt; node.copy(range = node.range.shifted(by), children = node.children.map { shiftBlock(it, by) })</ID>
+    <ID>MaxLineLength:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$is TableRowNode -&gt; node.copy(range = node.range.shifted(by), cells = node.cells.map { shiftBlock(it, by) as TableCellNode })</ID>
+    <ID>MaxLineLength:MarkdownEditorRenderTest.kt$MarkdownEditorRenderTest$Decoration(librarySpan.range, androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF00FF00)))</ID>
+    <ID>MaxLineLength:MarkdownEditorRenderTest.kt$MarkdownEditorRenderTest$val host = listOf(Decoration(range, androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF00FF00))))</ID>
+    <ID>MaxLineLength:MarkdownParserTest.kt$MarkdownParserTest$assertEquals(1, spans.size, "one delimiter pair, one code span; saw ${paragraph.inlines.map { it::class.simpleName }}")</ID>
+    <ID>MaxLineLength:MarkdownParserTest.kt$MarkdownParserTest$assertEquals(listOf(BlockKind.PARAGRAPH), parse("just prose with a | pipe\nsecond line\n").blocks.map { it.kind })</ID>
+    <ID>MaxLineLength:MarkdownParserTest.kt$MarkdownParserTest$val editedInside = text.substring(0, inside) + "Careful indeed.\n" + text.substring(text.indexOf(".\n", inside) + 2)</ID>
+    <ID>MaxLineLength:SpikeDocumentTest.kt$SpikeDocumentTest$assertTrue(SpikeDocument.lineCount &gt;= SpikeDocument.LARGE_DOCUMENT_LINES, "got ${SpikeDocument.lineCount} lines")</ID>
+    <ID>NestedBlockDepth:BlockRangePropertyTest.kt$BlockRangePropertyTest$@Test fun afterAnySingleCharacterEditEveryBlocksContentIsCoveredByThatBlock()</ID>
+    <ID>NestedBlockDepth:BlockRangePropertyTest.kt$BlockRangePropertyTest$@Test fun afterAnySingleCharacterEditEveryOffsetStillResolvesToTheBlockThatContainsIt()</ID>
+    <ID>NestedBlockDepth:BlockRangePropertyTest.kt$BlockRangePropertyTest$@Test fun everyBlockCoversTheSourceTheAuthorWrote()</ID>
+    <ID>NestedBlockDepth:BlockRangePropertyTest.kt$BlockRangePropertyTest$@Test fun noUnclosedFenceClaimsATrailingTerminator()</ID>
+    <ID>NestedBlockDepth:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBlocks( text: String, start: Int, end: Int, countBlocks: Boolean = false, ): List&lt;BlockNode&gt;</ID>
+    <ID>NestedBlockDepth:IncrementalMarkdownParser.kt$IncrementalMarkdownParser$private fun parseBuiltInInline(text: String, start: Int, end: Int): List&lt;InlineNode&gt;</ID>
+    <ID>NestedBlockDepth:IncrementalReparseTest.kt$IncrementalReparseTest$@Test fun everySingleCharacterEditAtEveryOffsetReparsesToAFullParseOfTheSameText()</ID>
+    <ID>NestedBlockDepth:TansekiFunctionalTest.kt$Json$fun parseObject(body: String): Map&lt;String, String&gt;</ID>
+    <ID>NewLineAtEndOfFile:BlockFixtures.kt$dev.fude.markdown.BlockFixtures.kt</ID>
+    <ID>NewLineAtEndOfFile:ConformanceCorpusTest.kt$dev.fude.markdown.ConformanceCorpusTest.kt</ID>
+    <ID>NewLineAtEndOfFile:LineEndingAndBlockExtentTest.kt$dev.fude.markdown.LineEndingAndBlockExtentTest.kt</ID>
+    <ID>NewLineAtEndOfFile:TansekiFunctionalTest.kt$dev.fude.functional.TansekiFunctionalTest.kt</ID>
+    <ID>NewLineAtEndOfFile:UndoGroupingThroughTheGesturePathTest.kt$dev.fude.editor.UndoGroupingThroughTheGesturePathTest.kt</ID>
+    <ID>TooManyFunctions:IncrementalMarkdownParser.kt$IncrementalMarkdownParser</ID>
+    <ID>VariableNaming:MarkdownEditorRenderTest.kt$MarkdownEditorRenderTest$/** The offset the heading in [aHostSuppliedBlockViewStateCanBeToggledFromOutsideTheComposable] starts at. */ private val HEADING_START = 0</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,504 @@
+public final class dev/fude/editor/Decoration {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Landroidx/compose/ui/text/SpanStyle;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ldev/fude/core/InlineRange;Landroidx/compose/ui/text/SpanStyle;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Landroidx/compose/ui/text/SpanStyle;
+	public final fun component3 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ldev/fude/core/InlineRange;Landroidx/compose/ui/text/SpanStyle;Lkotlin/jvm/functions/Function0;)Ldev/fude/editor/Decoration;
+	public static synthetic fun copy$default (Ldev/fude/editor/Decoration;Ldev/fude/core/InlineRange;Landroidx/compose/ui/text/SpanStyle;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Ldev/fude/editor/Decoration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getOnClick ()Lkotlin/jvm/functions/Function0;
+	public final fun getRange ()Ldev/fude/core/InlineRange;
+	public final fun getSpanStyle ()Landroidx/compose/ui/text/SpanStyle;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/editor/EditorConfig {
+	public static final field $stable I
+	public synthetic fun <init> (Landroidx/compose/ui/text/TextStyle;FIZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Landroidx/compose/ui/text/TextStyle;FIZLjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component2-D9Ej5fM ()F
+	public final fun component3 ()I
+	public final fun component4 ()Z
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy-rAjV9yQ (Landroidx/compose/ui/text/TextStyle;FIZLjava/lang/String;)Ldev/fude/editor/EditorConfig;
+	public static synthetic fun copy-rAjV9yQ$default (Ldev/fude/editor/EditorConfig;Landroidx/compose/ui/text/TextStyle;FIZLjava/lang/String;ILjava/lang/Object;)Ldev/fude/editor/EditorConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContentPadding-D9Ej5fM ()F
+	public final fun getMaxLines ()I
+	public final fun getPlaceholder ()Ljava/lang/String;
+	public final fun getReadOnly ()Z
+	public final fun getTextStyle ()Landroidx/compose/ui/text/TextStyle;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/editor/EditorState {
+	public static final field $stable I
+	public static final field Companion Ldev/fude/editor/EditorState$Companion;
+	public synthetic fun <init> (Ldev/fude/core/EditorState;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun applyEdit (Ljava/lang/String;Ldev/fude/core/TextRange;Ldev/fude/core/ScrollState;)V
+	public static synthetic fun applyEdit$default (Ldev/fude/editor/EditorState;Ljava/lang/String;Ldev/fude/core/TextRange;Ldev/fude/core/ScrollState;ILjava/lang/Object;)V
+	public final fun getModel ()Ldev/fude/core/EditorState;
+	public final fun getSelection ()Ldev/fude/core/TextRange;
+	public final fun getText ()Ljava/lang/String;
+	public final fun moveCaretTo (I)V
+	public final fun selectRange (II)V
+}
+
+public final class dev/fude/editor/EditorState$Companion {
+	public final fun of (Ljava/lang/String;I)Ldev/fude/editor/EditorState;
+	public static synthetic fun of$default (Ldev/fude/editor/EditorState$Companion;Ljava/lang/String;IILjava/lang/Object;)Ldev/fude/editor/EditorState;
+}
+
+public final class dev/fude/editor/Fude {
+	public static final field $stable I
+	public static final field INSTANCE Ldev/fude/editor/Fude;
+	public static final field VERSION Ljava/lang/String;
+}
+
+public final class dev/fude/editor/MarkdownEditorKt {
+	public static final fun MarkdownEditor (Ldev/fude/editor/EditorState;Landroidx/compose/ui/Modifier;Ldev/fude/editor/EditorConfig;Ljava/util/List;Ldev/fude/core/UndoController;Ldev/fude/markdown/BlockViewState;Lkotlin/jvm/functions/Function1;Ljava/util/List;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class dev/fude/markdown/BlockKind : java/lang/Enum {
+	public static final field BLOCK_QUOTE Ldev/fude/markdown/BlockKind;
+	public static final field CODE_FENCE Ldev/fude/markdown/BlockKind;
+	public static final field HEADING Ldev/fude/markdown/BlockKind;
+	public static final field HOST_DEFINED Ldev/fude/markdown/BlockKind;
+	public static final field LIST Ldev/fude/markdown/BlockKind;
+	public static final field LIST_ITEM Ldev/fude/markdown/BlockKind;
+	public static final field PARAGRAPH Ldev/fude/markdown/BlockKind;
+	public static final field TABLE Ldev/fude/markdown/BlockKind;
+	public static final field TABLE_CELL Ldev/fude/markdown/BlockKind;
+	public static final field TABLE_ROW Ldev/fude/markdown/BlockKind;
+	public static final field THEMATIC_BREAK Ldev/fude/markdown/BlockKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/fude/markdown/BlockKind;
+	public static fun values ()[Ldev/fude/markdown/BlockKind;
+}
+
+public abstract interface class dev/fude/markdown/BlockNode {
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public abstract fun getKind ()Ldev/fude/markdown/BlockKind;
+	public abstract fun getRange ()Ldev/fude/core/InlineRange;
+}
+
+public final class dev/fude/markdown/BlockNode$DefaultImpls {
+	public static fun getChildren (Ldev/fude/markdown/BlockNode;)Ljava/util/List;
+	public static fun getInlines (Ldev/fude/markdown/BlockNode;)Ljava/util/List;
+}
+
+public final class dev/fude/markdown/BlockNodeKt {
+	public static final fun flattenBlocks (Ljava/util/List;)Ljava/util/List;
+}
+
+public final class dev/fude/markdown/BlockQuoteNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;)Ldev/fude/markdown/BlockQuoteNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/BlockQuoteNode;Ldev/fude/core/InlineRange;Ljava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/BlockQuoteNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/BlockViewState {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun clear ()V
+	public final fun copy ()Ldev/fude/markdown/BlockViewState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCollisions ()I
+	public fun hashCode ()I
+	public final fun isDefault ()Z
+	public final fun isSource (I)Z
+	public final fun modeOf (I)Ldev/fude/markdown/RenderMode;
+	public final fun remapAfter (II)V
+	public final fun retainOnly (Ljava/util/Set;)V
+	public final fun set (ILdev/fude/markdown/RenderMode;)V
+	public final fun sourceBlocks ()Ljava/util/Set;
+	public fun toString ()Ljava/lang/String;
+	public final fun toggle (I)Ldev/fude/markdown/RenderMode;
+}
+
+public final class dev/fude/markdown/CodeFenceNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ldev/fude/core/InlineRange;Ljava/lang/String;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ldev/fude/core/InlineRange;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun content (Ljava/lang/CharSequence;)Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/InlineRange;Ldev/fude/core/InlineRange;Ljava/lang/String;)Ldev/fude/markdown/CodeFenceNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/CodeFenceNode;Ldev/fude/core/InlineRange;Ldev/fude/core/InlineRange;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/markdown/CodeFenceNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public final fun getContentRange ()Ldev/fude/core/InlineRange;
+	public final fun getInfo ()Ljava/lang/String;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/CodeSpanNode : dev/fude/markdown/InlineNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/lang/String;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/lang/String;)Ldev/fude/markdown/CodeSpanNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/CodeSpanNode;Ldev/fude/core/InlineRange;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/markdown/CodeSpanNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()Ljava/lang/String;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/EmphasisNode : dev/fude/markdown/InlineNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;Z)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Z
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;Z)Ldev/fude/markdown/EmphasisNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/EmphasisNode;Ldev/fude/core/InlineRange;Ljava/util/List;ZILjava/lang/Object;)Ldev/fude/markdown/EmphasisNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChildren ()Ljava/util/List;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public final fun getStrong ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/HeadingNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;ILjava/util/List;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ldev/fude/core/InlineRange;ILjava/util/List;)Ldev/fude/markdown/HeadingNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/HeadingNode;Ldev/fude/core/InlineRange;ILjava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/HeadingNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public final fun getLevel ()I
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/HostBlockNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/lang/String;Z)V
+	public synthetic fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Z
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/lang/String;Z)Ldev/fude/markdown/HostBlockNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/HostBlockNode;Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/lang/String;ZILjava/lang/Object;)Ldev/fude/markdown/HostBlockNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public final fun getExtensionId ()Ljava/lang/String;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public final fun getOwnsTerminator ()Z
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/HostInlineNode : dev/fude/markdown/InlineNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/lang/String;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/lang/String;)Ldev/fude/markdown/HostInlineNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/HostInlineNode;Ldev/fude/core/InlineRange;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/markdown/HostInlineNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExtensionId ()Ljava/lang/String;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ImageNode : dev/fude/markdown/InlineNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/lang/String;Ljava/lang/String;)Ldev/fude/markdown/ImageNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/ImageNode;Ldev/fude/core/InlineRange;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/markdown/ImageNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAltText ()Ljava/lang/String;
+	public final fun getDestination ()Ljava/lang/String;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/IncrementalMarkdownParser {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;Ldev/fude/markdown/ReparseCounter;)V
+	public synthetic fun <init> (Ljava/util/List;Ldev/fude/markdown/ReparseCounter;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun parse (Ljava/lang/String;)Ldev/fude/markdown/ParsedDocument;
+	public final fun reparse (Ljava/lang/String;Ldev/fude/core/Edit;)Ldev/fude/markdown/ParsedDocument;
+}
+
+public abstract interface class dev/fude/markdown/InlineNode {
+	public abstract fun getRange ()Ldev/fude/core/InlineRange;
+}
+
+public final class dev/fude/markdown/LinkNode : dev/fude/markdown/InlineNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ldev/fude/core/InlineRange;Ljava/lang/String;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ldev/fude/core/InlineRange;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/InlineRange;Ldev/fude/core/InlineRange;Ljava/lang/String;)Ldev/fude/markdown/LinkNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/LinkNode;Ldev/fude/core/InlineRange;Ldev/fude/core/InlineRange;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/markdown/LinkNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDestination ()Ljava/lang/String;
+	public final fun getLabelRange ()Ldev/fude/core/InlineRange;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ListItemNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/util/List;I)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()I
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/util/List;I)Ldev/fude/markdown/ListItemNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/ListItemNode;Ldev/fude/core/InlineRange;Ljava/util/List;Ljava/util/List;IILjava/lang/Object;)Ldev/fude/markdown/ListItemNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public final fun getIndent ()I
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ListNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;ZLjava/util/List;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ldev/fude/core/InlineRange;ZLjava/util/List;)Ldev/fude/markdown/ListNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/ListNode;Ldev/fude/core/InlineRange;ZLjava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/ListNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public final fun getOrdered ()Z
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ParagraphNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;)Ldev/fude/markdown/ParagraphNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/ParagraphNode;Ldev/fude/core/InlineRange;Ljava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/ParagraphNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ParsedDocument {
+	public static final field $stable I
+	public static final field Companion Ldev/fude/markdown/ParsedDocument$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public final fun blockAt (I)Ldev/fude/markdown/BlockNode;
+	public final fun blockContaining (Ldev/fude/core/InlineRange;)Ldev/fude/markdown/BlockNode;
+	public final fun blockStartAtOrBefore (I)I
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun contentRange ()Ldev/fude/core/InlineRange;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;)Ldev/fude/markdown/ParsedDocument;
+	public static synthetic fun copy$default (Ldev/fude/markdown/ParsedDocument;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/ParsedDocument;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAllBlocks ()Ljava/util/List;
+	public final fun getBlocks ()Ljava/util/List;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ParsedDocument$Companion {
+	public final fun getEMPTY ()Ldev/fude/markdown/ParsedDocument;
+}
+
+public final class dev/fude/markdown/RenderMode : java/lang/Enum {
+	public static final field RENDERED Ldev/fude/markdown/RenderMode;
+	public static final field SOURCE Ldev/fude/markdown/RenderMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/fude/markdown/RenderMode;
+	public static fun values ()[Ldev/fude/markdown/RenderMode;
+}
+
+public final class dev/fude/markdown/RenderModeKt {
+	public static final fun flatten (Ldev/fude/markdown/BlockNode;)Ljava/util/List;
+}
+
+public final class dev/fude/markdown/ReparseCounter {
+	public static final field $stable I
+	public fun <init> ()V
+	public final fun getBlockParses ()I
+	public final fun getFullParses ()I
+	public final fun recordBlockParse ()V
+	public final fun recordFullParse ()V
+	public final fun reset ()V
+}
+
+public final class dev/fude/markdown/TableCellNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;)Ldev/fude/markdown/TableCellNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/TableCellNode;Ldev/fude/core/InlineRange;Ljava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/TableCellNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/TableNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;Z)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Z
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;Z)Ldev/fude/markdown/TableNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/TableNode;Ldev/fude/core/InlineRange;Ljava/util/List;ZILjava/lang/Object;)Ldev/fude/markdown/TableNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public final fun getHasHeader ()Z
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/TableRowNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/util/List;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/util/List;)Ldev/fude/markdown/TableRowNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/TableRowNode;Ldev/fude/core/InlineRange;Ljava/util/List;ILjava/lang/Object;)Ldev/fude/markdown/TableRowNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCells ()Ljava/util/List;
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/TextNode : dev/fude/markdown/InlineNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;Ljava/lang/String;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/InlineRange;Ljava/lang/String;)Ldev/fude/markdown/TextNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/TextNode;Ldev/fude/core/InlineRange;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/markdown/TextNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ThematicBreakNode : dev/fude/markdown/BlockNode {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun copy (Ldev/fude/core/InlineRange;)Ldev/fude/markdown/ThematicBreakNode;
+	public static synthetic fun copy$default (Ldev/fude/markdown/ThematicBreakNode;Ldev/fude/core/InlineRange;ILjava/lang/Object;)Ldev/fude/markdown/ThematicBreakNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChildren ()Ljava/util/List;
+	public fun getInlines ()Ljava/util/List;
+	public fun getKind ()Ldev/fude/markdown/BlockKind;
+	public fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/markdown/ToggleCoordinator {
+	public static final field $stable I
+	public static final field INSTANCE Ldev/fude/markdown/ToggleCoordinator;
+	public final fun afterEdit (Ldev/fude/markdown/BlockViewState;IILjava/util/Set;)Ldev/fude/markdown/BlockViewState;
+	public final fun blockStarts (Ljava/util/List;)Ljava/util/Set;
+}
+
+public final class dev/fude/render/VisualToSourceMapper {
+	public static final field $stable I
+	public fun <init> (Ljava/util/List;)V
+	public final fun sourceAt (I)Ldev/fude/core/InlineRange;
+	public final fun sourceTextFor (Lkotlin/ranges/IntRange;Ljava/lang/CharSequence;)Ljava/lang/String;
+	public final fun visualOf (Ldev/fude/core/InlineRange;)Lkotlin/ranges/IntRange;
+}
+
+public final class dev/fude/render/VisualToSourceMapper$VisualRun {
+	public static final field $stable I
+	public fun <init> (Ldev/fude/core/InlineRange;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun copy (Ldev/fude/core/InlineRange;)Ldev/fude/render/VisualToSourceMapper$VisualRun;
+	public static synthetic fun copy$default (Ldev/fude/render/VisualToSourceMapper$VisualRun;Ldev/fude/core/InlineRange;ILjava/lang/Object;)Ldev/fude/render/VisualToSourceMapper$VisualRun;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSource ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/spike/SpikeDocument {
+	public static final field $stable I
+	public static final field CARET_ANCHOR Ljava/lang/String;
+	public static final field CARET_ANCHOR_OFFSET I
+	public static final field INSTANCE Ldev/fude/spike/SpikeDocument;
+	public static final field LARGE_DOCUMENT_LINES I
+	public final fun getCaretOffset ()I
+	public final fun getCharCount ()I
+	public final fun getFull ()Ljava/lang/String;
+	public final fun getHeader ()Ljava/lang/String;
+	public final fun getLineCount ()I
+	public final fun getSyntheticBody ()Ljava/lang/String;
+}
+

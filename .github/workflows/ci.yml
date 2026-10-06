@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test (JVM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Check the wrapper is the committed one
+        # A wrapper that differs from the one in the tree means the build is not
+        # the build anyone reviewed.
+        run: |
+          ./gradlew --version
+          git diff --exit-code gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build
+        # Runs the architecture check via `check`, which fails if commonMain
+        # reaches for host-store types, java.*, or (in :fude-core) Compose.
+        run: ./gradlew build --stacktrace
+
+      - name: Architecture check
+        run: ./gradlew checkArchitecture
+
+      - name: Binary compatibility
+        # Named as its own step so a failure says which gate failed rather than
+        # surfacing as "build failed". A published API change must be accepted by
+        # running apiDump and committing the result -- see README on Gates.
+        run: ./gradlew apiCheck
+
+      - name: Static analysis
+        # Enforced on JDK 17, which is inside detekt 1.23.8's supported range. On
+        # Java 23+ detekt cannot start and this step would fail loudly rather than
+        # silently pass, which is the behaviour README documents.
+        run: ./gradlew detekt
+
+  # iOS, web and Wasm targets are deliberately not declared yet: they need a
+  # machine with Xcode to verify, and an unverified target in a build matrix is
+  # worse than an absent one. This job exists to fail loudly the moment they are
+  # added without a macOS leg.
+  missing-targets:
+    name: Target coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Declared targets
+        run: |
+          # Both modules, not just :fude. A target added to :fude-core first would
+          # not be noticed otherwise, and :fude-core is the module whose KMP reach
+          # matters most -- it is the one that must stay free of Compose and of
+          # java.* imports, per checkArchitecture.
+          for module in fude fude-core; do
+            echo "Targets declared in $module/build.gradle.kts:"
+            grep -E '^\s+(jvm|android|iosX64|iosArm64|iosSimulatorArm64|js|wasmJs)\(' "$module/build.gradle.kts" || true
+            echo
+          done
+          echo "If iOS/web/Wasm appear here, add a macOS job before merging."

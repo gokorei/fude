@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MatchingDeclarationName:Sweep.kt$Variant</ID>
+    <ID>NewLineAtEndOfFile:CalloutSyntaxTest.kt$dev.fude.demo.CalloutSyntaxTest.kt</ID>
+    <ID>NewLineAtEndOfFile:Sweep.kt$dev.fude.demo.Sweep.kt</ID>
+  </CurrentIssues>
+</SmellBaseline>

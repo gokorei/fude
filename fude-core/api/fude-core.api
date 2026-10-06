@@ -1,0 +1,365 @@
+public final class dev/fude/core/Delete : dev/fude/core/Edit {
+	public fun <init> (Ldev/fude/core/TextRange;Ljava/lang/String;)V
+	public fun applyTo (Ljava/lang/String;)Ljava/lang/String;
+	public final fun component1 ()Ldev/fude/core/TextRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/TextRange;Ljava/lang/String;)Ldev/fude/core/Delete;
+	public static synthetic fun copy$default (Ldev/fude/core/Delete;Ldev/fude/core/TextRange;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/core/Delete;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getAffectedRange ()Ldev/fude/core/TextRange;
+	public fun getDescribe ()Ljava/lang/String;
+	public final fun getRemoved ()Ljava/lang/String;
+	public fun getReplacement ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun inverse ()Ldev/fude/core/Edit;
+	public fun isNoOp (Ldev/fude/core/TextBuffer;)Z
+	public fun mapOffset (ILdev/fude/core/OffsetAffinity;)I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/fude/core/Edit {
+	public abstract fun applyTo (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun getAffectedRange ()Ldev/fude/core/TextRange;
+	public abstract fun getDescribe ()Ljava/lang/String;
+	public abstract fun getReplacement ()Ljava/lang/String;
+	public abstract fun inverse ()Ldev/fude/core/Edit;
+	public abstract fun isNoOp (Ldev/fude/core/TextBuffer;)Z
+	public abstract fun mapOffset (ILdev/fude/core/OffsetAffinity;)I
+	public static synthetic fun mapOffset$default (Ldev/fude/core/Edit;ILdev/fude/core/OffsetAffinity;ILjava/lang/Object;)I
+}
+
+public final class dev/fude/core/Edit$DefaultImpls {
+	public static synthetic fun mapOffset$default (Ldev/fude/core/Edit;ILdev/fude/core/OffsetAffinity;ILjava/lang/Object;)I
+}
+
+public final class dev/fude/core/EditDiffKt {
+	public static final fun editBetween (Ljava/lang/String;Ljava/lang/String;)Ldev/fude/core/Edit;
+}
+
+public final class dev/fude/core/EditKt {
+	public static final fun mapThrough (Ldev/fude/core/TextRange;Ldev/fude/core/Edit;)Ldev/fude/core/TextRange;
+	public static final fun replace (Ldev/fude/core/TextBuffer;Ldev/fude/core/TextRange;Ljava/lang/String;)Ldev/fude/core/Edit;
+	public static final fun replaceSelection (Ldev/fude/core/TextBuffer;Ldev/fude/core/TextRange;Ljava/lang/String;)Ldev/fude/core/Edit;
+}
+
+public final class dev/fude/core/EditorState {
+	public static final field Companion Ldev/fude/core/EditorState$Companion;
+	public fun <init> ()V
+	public fun <init> (Ldev/fude/core/TextBuffer;Ldev/fude/core/TextRange;Ldev/fude/core/ScrollState;)V
+	public synthetic fun <init> (Ldev/fude/core/TextBuffer;Ldev/fude/core/TextRange;Ldev/fude/core/ScrollState;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun apply (Ldev/fude/core/Edit;)Ldev/fude/core/EditorState;
+	public final fun component1 ()Ldev/fude/core/TextBuffer;
+	public final fun component2 ()Ldev/fude/core/TextRange;
+	public final fun component3 ()Ldev/fude/core/ScrollState;
+	public final fun copy (Ldev/fude/core/TextBuffer;Ldev/fude/core/TextRange;Ldev/fude/core/ScrollState;)Ldev/fude/core/EditorState;
+	public static synthetic fun copy$default (Ldev/fude/core/EditorState;Ldev/fude/core/TextBuffer;Ldev/fude/core/TextRange;Ldev/fude/core/ScrollState;ILjava/lang/Object;)Ldev/fude/core/EditorState;
+	public final fun deleteBackward ()Ldev/fude/core/EditorState;
+	public final fun deleteForward ()Ldev/fude/core/EditorState;
+	public final fun deleteRange (Ldev/fude/core/TextRange;)Ldev/fude/core/EditorState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCaret ()I
+	public final fun getScroll ()Ldev/fude/core/ScrollState;
+	public final fun getSelectedText ()Ljava/lang/String;
+	public final fun getSelection ()Ldev/fude/core/TextRange;
+	public final fun getText ()Ldev/fude/core/TextBuffer;
+	public fun hashCode ()I
+	public final fun insert (Ljava/lang/String;)Ldev/fude/core/EditorState;
+	public final fun insertAt (ILjava/lang/String;)Ldev/fude/core/EditorState;
+	public final fun isEmpty ()Z
+	public final fun moveCaretTo (I)Ldev/fude/core/EditorState;
+	public final fun replace (Ldev/fude/core/TextRange;Ljava/lang/String;)Ldev/fude/core/EditorState;
+	public final fun select (Ldev/fude/core/TextRange;)Ldev/fude/core/EditorState;
+	public final fun selectRange (II)Ldev/fude/core/EditorState;
+	public fun toString ()Ljava/lang/String;
+	public final fun withScroll (Ldev/fude/core/ScrollState;)Ldev/fude/core/EditorState;
+}
+
+public final class dev/fude/core/EditorState$Companion {
+	public final fun of (Ljava/lang/String;I)Ldev/fude/core/EditorState;
+	public static synthetic fun of$default (Ldev/fude/core/EditorState$Companion;Ljava/lang/String;IILjava/lang/Object;)Ldev/fude/core/EditorState;
+}
+
+public final class dev/fude/core/EditorStateKt {
+	public static final fun clampedTo (Ldev/fude/core/TextRange;I)Ldev/fude/core/TextRange;
+}
+
+public final class dev/fude/core/GraphemesKt {
+	public static final fun graphemeEndOf (Ldev/fude/core/TextBuffer;I)I
+	public static final fun graphemeStartOf (Ldev/fude/core/TextBuffer;I)I
+	public static final fun nextGraphemeBoundary (Ldev/fude/core/TextBuffer;I)I
+	public static final fun previousGraphemeBoundary (Ldev/fude/core/TextBuffer;I)I
+}
+
+public final class dev/fude/core/InlineRange {
+	public static final field Companion Ldev/fude/core/InlineRange$Companion;
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun contains (I)Z
+	public final fun copy (II)Ldev/fude/core/InlineRange;
+	public static synthetic fun copy$default (Ldev/fude/core/InlineRange;IIILjava/lang/Object;)Ldev/fude/core/InlineRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnd ()I
+	public final fun getLength ()I
+	public final fun getStart ()I
+	public fun hashCode ()I
+	public final fun intersects (Ldev/fude/core/InlineRange;)Z
+	public final fun isEmpty ()Z
+	public final fun mapThrough (Ldev/fude/core/Edit;)Ldev/fude/core/InlineRange;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/core/InlineRange$Companion {
+	public final fun collapsed (I)Ldev/fude/core/InlineRange;
+	public final fun getZERO ()Ldev/fude/core/InlineRange;
+}
+
+public final class dev/fude/core/Insert : dev/fude/core/Edit {
+	public fun <init> (ILjava/lang/String;)V
+	public fun applyTo (Ljava/lang/String;)Ljava/lang/String;
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;)Ldev/fude/core/Insert;
+	public static synthetic fun copy$default (Ldev/fude/core/Insert;ILjava/lang/String;ILjava/lang/Object;)Ldev/fude/core/Insert;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getAffectedRange ()Ldev/fude/core/TextRange;
+	public fun getDescribe ()Ljava/lang/String;
+	public final fun getOffset ()I
+	public fun getReplacement ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun inverse ()Ldev/fude/core/Edit;
+	public fun isNoOp (Ldev/fude/core/TextBuffer;)Z
+	public fun mapOffset (ILdev/fude/core/OffsetAffinity;)I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/core/OffsetAffinity : java/lang/Enum {
+	public static final field DOWNSTREAM Ldev/fude/core/OffsetAffinity;
+	public static final field UPSTREAM Ldev/fude/core/OffsetAffinity;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/fude/core/OffsetAffinity;
+	public static fun values ()[Ldev/fude/core/OffsetAffinity;
+}
+
+public final class dev/fude/core/Replace : dev/fude/core/Edit {
+	public fun <init> (Ldev/fude/core/TextRange;Ljava/lang/String;Ljava/lang/String;)V
+	public fun applyTo (Ljava/lang/String;)Ljava/lang/String;
+	public final fun component1 ()Ldev/fude/core/TextRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ldev/fude/core/TextRange;Ljava/lang/String;Ljava/lang/String;)Ldev/fude/core/Replace;
+	public static synthetic fun copy$default (Ldev/fude/core/Replace;Ldev/fude/core/TextRange;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/fude/core/Replace;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getAffectedRange ()Ldev/fude/core/TextRange;
+	public fun getDescribe ()Ljava/lang/String;
+	public final fun getInserted ()Ljava/lang/String;
+	public final fun getRange ()Ldev/fude/core/TextRange;
+	public final fun getRemoved ()Ljava/lang/String;
+	public fun getReplacement ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun inverse ()Ldev/fude/core/Edit;
+	public fun isNoOp (Ldev/fude/core/TextBuffer;)Z
+	public fun mapOffset (ILdev/fude/core/OffsetAffinity;)I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/core/ScrollState {
+	public static final field Companion Ldev/fude/core/ScrollState$Companion;
+	public fun <init> ()V
+	public fun <init> (FF)V
+	public synthetic fun <init> (FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()F
+	public final fun component2 ()F
+	public final fun copy (FF)Ldev/fude/core/ScrollState;
+	public static synthetic fun copy$default (Ldev/fude/core/ScrollState;FFILjava/lang/Object;)Ldev/fude/core/ScrollState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExtent ()F
+	public final fun getFirstVisibleOffset ()I
+	public final fun getLastVisibleOffset ()I
+	public final fun getOffset ()F
+	public fun hashCode ()I
+	public final fun isAtBottom ()Z
+	public final fun isAtTop ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/core/ScrollState$Companion {
+	public final fun getZERO ()Ldev/fude/core/ScrollState;
+}
+
+public final class dev/fude/core/TextBuffer {
+	public static final field Companion Ldev/fude/core/TextBuffer$Companion;
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun charAt (I)C
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLength ()I
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isBlank ()Z
+	public final fun substring (II)Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+	public final fun withEdit (Ldev/fude/core/Edit;)Ldev/fude/core/TextBuffer;
+}
+
+public final class dev/fude/core/TextBuffer$Companion {
+	public final fun getEMPTY ()Ldev/fude/core/TextBuffer;
+	public final fun of (Ljava/lang/String;)Ldev/fude/core/TextBuffer;
+}
+
+public final class dev/fude/core/TextRange {
+	public static final field Companion Ldev/fude/core/TextRange$Companion;
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun contains (Ldev/fude/core/TextRange;)Z
+	public final fun copy (II)Ldev/fude/core/TextRange;
+	public static synthetic fun copy$default (Ldev/fude/core/TextRange;IIILjava/lang/Object;)Ldev/fude/core/TextRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnd ()I
+	public final fun getLength ()I
+	public final fun getStart ()I
+	public fun hashCode ()I
+	public final fun intersects (Ldev/fude/core/TextRange;)Z
+	public final fun isCollapsed ()Z
+	public final fun shifted (II)Ldev/fude/core/TextRange;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/core/TextRange$Companion {
+	public final fun collapsed (I)Ldev/fude/core/TextRange;
+	public final fun getZERO ()Ldev/fude/core/TextRange;
+}
+
+public abstract interface class dev/fude/core/TimeSource {
+	public static final field Companion Ldev/fude/core/TimeSource$Companion;
+	public abstract fun nowMillis ()J
+}
+
+public final class dev/fude/core/TimeSource$Companion {
+	public final fun getFIXED ()Ldev/fude/core/TimeSource;
+	public final fun getSYSTEM ()Ldev/fude/core/TimeSource;
+}
+
+public final class dev/fude/core/TimeSource$Companion$Manual : dev/fude/core/TimeSource {
+	public fun <init> ()V
+	public fun <init> (J)V
+	public synthetic fun <init> (JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun advance (J)V
+	public fun nowMillis ()J
+}
+
+public abstract interface class dev/fude/core/UndoController {
+	public abstract fun getCanRedo ()Z
+	public abstract fun getCanUndo ()Z
+	public abstract fun record (Ldev/fude/core/EditorState;Ldev/fude/core/EditorState;Ldev/fude/core/Edit;)V
+	public abstract fun redo (Ldev/fude/core/EditorState;)Ldev/fude/core/EditorState;
+	public abstract fun undo (Ldev/fude/core/EditorState;)Ldev/fude/core/EditorState;
+}
+
+public final class dev/fude/core/UndoGrouping {
+	public static final field Companion Ldev/fude/core/UndoGrouping$Companion;
+	public fun <init> ()V
+	public fun <init> (JLjava/util/Set;ZLdev/fude/core/TimeSource;)V
+	public synthetic fun <init> (JLjava/util/Set;ZLdev/fude/core/TimeSource;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCoalesceTyping ()Z
+	public final fun getIdleTimeoutMillis ()J
+	public final fun millisSinceLastEdit ()J
+	public final fun recordEditTime ()V
+	public final fun shouldMerge (Ldev/fude/core/Edit;Ldev/fude/core/Edit;Ldev/fude/core/TextRange;Ldev/fude/core/TextRange;J)Z
+	public static synthetic fun shouldMerge$default (Ldev/fude/core/UndoGrouping;Ldev/fude/core/Edit;Ldev/fude/core/Edit;Ldev/fude/core/TextRange;Ldev/fude/core/TextRange;JILjava/lang/Object;)Z
+}
+
+public final class dev/fude/core/UndoGrouping$Companion {
+	public final fun getDEFAULT_BOUNDARY_CHARACTERS ()Ljava/util/Set;
+}
+
+public final class dev/fude/core/UndoStack : dev/fude/core/UndoController {
+	public fun <init> ()V
+	public fun <init> (Ldev/fude/core/UndoGrouping;II)V
+	public synthetic fun <init> (Ldev/fude/core/UndoGrouping;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun clear ()V
+	public fun getCanRedo ()Z
+	public fun getCanUndo ()Z
+	public final fun getRedoDepth ()I
+	public final fun getRetainedChars ()I
+	public final fun getUndoDepth ()I
+	public fun record (Ldev/fude/core/EditorState;Ldev/fude/core/EditorState;Ldev/fude/core/Edit;)V
+	public fun redo (Ldev/fude/core/EditorState;)Ldev/fude/core/EditorState;
+	public fun undo (Ldev/fude/core/EditorState;)Ldev/fude/core/EditorState;
+}
+
+public final class dev/fude/syntax/BlockContext {
+	public fun <init> (Ljava/lang/CharSequence;Ldev/fude/core/InlineRange;Ljava/lang/CharSequence;)V
+	public synthetic fun <init> (Ljava/lang/CharSequence;Ldev/fude/core/InlineRange;Ljava/lang/CharSequence;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/CharSequence;
+	public final fun component2 ()Ldev/fude/core/InlineRange;
+	public final fun component3 ()Ljava/lang/CharSequence;
+	public final fun copy (Ljava/lang/CharSequence;Ldev/fude/core/InlineRange;Ljava/lang/CharSequence;)Ldev/fude/syntax/BlockContext;
+	public static synthetic fun copy$default (Ldev/fude/syntax/BlockContext;Ljava/lang/CharSequence;Ldev/fude/core/InlineRange;Ljava/lang/CharSequence;ILjava/lang/Object;)Ldev/fude/syntax/BlockContext;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContent ()Ljava/lang/CharSequence;
+	public final fun getRange ()Ldev/fude/core/InlineRange;
+	public final fun getText ()Ljava/lang/CharSequence;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/syntax/BlockMatch {
+	public fun <init> (Ldev/fude/core/InlineRange;Z)V
+	public synthetic fun <init> (Ldev/fude/core/InlineRange;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/fude/core/InlineRange;
+	public final fun component2 ()Z
+	public final fun copy (Ldev/fude/core/InlineRange;Z)Ldev/fude/syntax/BlockMatch;
+	public static synthetic fun copy$default (Ldev/fude/syntax/BlockMatch;Ldev/fude/core/InlineRange;ZILjava/lang/Object;)Ldev/fude/syntax/BlockMatch;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getOwnsTerminator ()Z
+	public final fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/syntax/ResolvedBlockMatch {
+	public fun <init> (Ljava/lang/String;Ldev/fude/syntax/BlockMatch;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/fude/syntax/BlockMatch;
+	public final fun copy (Ljava/lang/String;Ldev/fude/syntax/BlockMatch;)Ldev/fude/syntax/ResolvedBlockMatch;
+	public static synthetic fun copy$default (Ldev/fude/syntax/ResolvedBlockMatch;Ljava/lang/String;Ldev/fude/syntax/BlockMatch;ILjava/lang/Object;)Ldev/fude/syntax/ResolvedBlockMatch;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExtensionId ()Ljava/lang/String;
+	public final fun getMatch ()Ldev/fude/syntax/BlockMatch;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/fude/syntax/ResolvedMatch {
+	public fun <init> (Ljava/lang/String;Ldev/fude/core/InlineRange;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/fude/core/InlineRange;
+	public final fun copy (Ljava/lang/String;Ldev/fude/core/InlineRange;)Ldev/fude/syntax/ResolvedMatch;
+	public static synthetic fun copy$default (Ldev/fude/syntax/ResolvedMatch;Ljava/lang/String;Ldev/fude/core/InlineRange;ILjava/lang/Object;)Ldev/fude/syntax/ResolvedMatch;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExtensionId ()Ljava/lang/String;
+	public final fun getRange ()Ldev/fude/core/InlineRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/fude/syntax/SyntaxExtension {
+	public abstract fun getId ()Ljava/lang/String;
+	public fun getPriority ()I
+	public fun recogniseBlocks (Ldev/fude/syntax/BlockContext;)Ljava/util/List;
+	public fun recogniseInline (Ldev/fude/syntax/BlockContext;)Ljava/util/List;
+}
+
+public final class dev/fude/syntax/SyntaxExtension$DefaultImpls {
+	public static fun getPriority (Ldev/fude/syntax/SyntaxExtension;)I
+	public static fun recogniseBlocks (Ldev/fude/syntax/SyntaxExtension;Ldev/fude/syntax/BlockContext;)Ljava/util/List;
+	public static fun recogniseInline (Ldev/fude/syntax/SyntaxExtension;Ldev/fude/syntax/BlockContext;)Ljava/util/List;
+}
+
+public final class dev/fude/syntax/SyntaxExtensionKt {
+	public static final fun resolveBlockMatches (Ljava/util/List;)Ljava/util/List;
+	public static final fun resolveMatches (Ljava/util/List;)Ljava/util/List;
+}
+

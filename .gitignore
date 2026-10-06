@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Local
+local.properties
+xcuserdata/
+*.xcworkspace
+
+# Python
+__pycache__/
+*.pyc
+
+# Pijul
+# Pijul is the working VCS; git is the checkpoint and distribution mirror. Pijul's
+# own metadata is not content and must never end up in a git commit — otherwise
+# `git add -A` from an agent sweeps several hundred internal state files into the
+# next checkpoint.
+.pijul/

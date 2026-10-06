@@ -1,0 +1,56 @@
+# Detekt, tuned rather than defaulted.
+#
+# A rule set nobody chose produces noise within a week, and a report full of findings
+# gets ignored -- which is worse than having no report, because it looks like coverage.
+# So this file states what this codebase wants checked and is explicit about the rest.
+
+build:
+  maxIssues: 0
+
+complexity:
+  LongParameterList:
+    # `MarkdownEditor` is a composable with a configuration object already; the
+    # threshold is not the point, the named arguments are.
+    functionThreshold: 8
+    constructorThreshold: 8
+  TooManyFunctions:
+    # `IncrementalMarkdownParser` is a parser. Many small private functions is what a
+    # parser looks like when it is written properly rather than accumulated.
+    thresholdInFiles: 40
+    thresholdInClasses: 40
+
+style:
+  MagicNumber:
+    active: false      # line-length arithmetic and colour constants are everywhere
+  ReturnCount:
+    active: false      # early returns are clearer than nesting, and used as such
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+    excludeCommentStatements: true
+  UnusedPrivateMember:
+    active: true
+  RedundantVisibilityModifier:
+    active: true
+  ForbiddenComment:
+    active: true
+    comments:
+      - reason: 'A TODO without an owner or a ticket is a wish, not a task.'
+        value: 'TODO:'
+      - reason: 'A FIXME says something is wrong and nothing says when it will be fixed.'
+        value: 'FIXME:'
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+    exceptionNames:
+      - Throwable
+      - Exception
+
+naming:
+  # Compose requires @Composable functions to be PascalCase. The rule does not know that.
+  FunctionNaming:
+    active: true
+    ignoreAnnotated: ['Composable']
+  FunctionMaxLength:
+    active: false

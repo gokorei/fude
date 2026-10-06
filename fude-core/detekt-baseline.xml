@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:Graphemes.kt$Graphemes$private fun isCombiningMark(codePoint: Int): Boolean</ID>
+    <ID>LoopWithTooManyJumpStatements:Graphemes.kt$Graphemes$while</ID>
+    <ID>MaxLineLength:EditorState.kt$EditorState$return copy(text = newText, selection = TextRange(caret.coerceIn(0, newText.length), caret.coerceIn(0, newText.length)))</ID>
+    <ID>MaxLineLength:GraphemesTest.kt$GraphemesTest$assertEquals("ab", state.text.text, "a lone carriage return left behind is invisible and corrupts every offset after it")</ID>
+    <ID>MaxLineLength:SyntaxExtensionTest.kt$SyntaxExtensionTest$assertEquals(emptyList(), mention.recogniseInline(contextFor("hello {{alice")), "an unclosed mention is not a mention")</ID>
+    <ID>NewLineAtEndOfFile:EditDiffTest.kt$dev.fude.core.EditDiffTest.kt</ID>
+    <ID>NewLineAtEndOfFile:UndoController.kt$dev.fude.core.UndoController.kt</ID>
+    <ID>TooManyFunctions:Graphemes.kt$Graphemes</ID>
+  </CurrentIssues>
+</SmellBaseline>
