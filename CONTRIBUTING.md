@@ -1,5 +1,11 @@
 # Contributing to Fude
 
+> **Pull requests from outside the maintainer team are closed on arrival**
+> by an automated guard — this is deliberate, not a misconfiguration. The
+> way to contribute is to open an issue (bug or feature template) with a
+> reproduction; code changes happen by maintainer invitation. Everything
+> below applies once you have been invited, or if you are a maintainer.
+
 ## Building and testing
 
 ```bash

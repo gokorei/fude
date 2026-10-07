@@ -1,0 +1,40 @@
+name: PR guard
+
+# Fude does not accept pull requests from outside the maintainer team (see
+# CONTRIBUTING.md). GitHub cannot block a PR from being opened on a public
+# repository, so this workflow closes such PRs on arrival with an explanation
+# pointing at the issue templates instead.
+#
+# `pull_request_target` runs in the base repository's context and this job
+# never checks out the PR's code, so untrusted input cannot execute here —
+# the only interpolated value is the PR number, which GitHub generates.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  guard:
+    name: Close PRs from non-maintainers
+    runs-on: ubuntu-latest
+    # OWNER/MEMBER: the gokorei organisation. COLLABORATOR: invited
+    # collaborators. Bots (e.g. Dependabot) are left alone.
+    if: >
+      github.event.pull_request.user.type != 'Bot' &&
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+        github.event.pull_request.author_association)
+    steps:
+      - name: Close with an explanation
+        run: >
+          gh pr close "${PR}" --comment "Thanks for the interest — this
+          repository does not accept pull requests from outside the
+          maintainer team. If you found a bug or want a feature, please
+          open an issue using the bug or feature template instead, with a
+          reproduction. Code contributions happen by maintainer invitation;
+          see CONTRIBUTING.md."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
