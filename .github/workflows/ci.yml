@@ -9,9 +9,25 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: checkout needs read, nothing here needs write. Without
+# this, the token inherits the organisation default, which may be permissive
+# — and this workflow executes code from PR branches (see the author gate on
+# each job), so its token must be useless for exfiltration by construction.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and test (JVM)
+    # Outside PRs never execute here: their code is untrusted, and the PR
+    # guard closes them on arrival. Pushes to main and maintainer/bot PRs run.
+    # Fork PR runs additionally get no secrets and a read-only token from
+    # GitHub itself; this gate means they do not even get that far.
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.user.type == 'Bot' ||
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+        github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +71,12 @@ jobs:
   # added without a macOS leg.
   missing-targets:
     name: Target coverage
+    # Same author gate as the build job: no outside code executes in CI.
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.user.type == 'Bot' ||
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+        github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
