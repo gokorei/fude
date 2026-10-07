@@ -210,7 +210,7 @@ class LineEndingAndBlockExtentTest {
             val slice = text.substring(node.range.start, node.range.end)
             assertFalse(
                 slice.contains('\r'),
-                "decorated inline ${node.javaClass.simpleName} range ${node.range} " +
+                "decorated inline ${node::class.simpleName} range ${node.range} " +
                     "contains a CR: '${show(slice)}'",
             )
         }

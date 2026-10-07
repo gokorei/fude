@@ -25,12 +25,13 @@ supplies its own dialect.
 | Editor state model | Done — `:fude-core` |
 | Syntax extension point | Done — [`docs/extending.md`](docs/extending.md) |
 | Markdown conformance | Stated, with gaps made deliberate — [`docs/conformance.md`](docs/conformance.md) |
-| Parser + incremental reparse | Done on JVM |
-| Renderer + per-block toggle | Done on JVM |
+| Parser + incremental reparse | Done on JVM and wasmJs — the `commonTest` suite runs in both |
+| Renderer + per-block toggle | Done on JVM; the decoration decision runs on wasmJs too, and the demo page renders decorated output in a real browser — typing by hand there is unverified |
+| Web adapter + demo page (`:fude-web`) | Done — `@JsExport` boundary plus demo page, verified headless (screenshot, JS round trip, clean console); hand-typing pending |
 | Keys, undo, IME, clipboard | **Partly** — undo and redo are the composable's, everything else is `BasicTextField`'s; see [Which layer owns editing mechanics](#which-layer-owns-editing-mechanics) |
-| iOS, Web, Wasm, native | Not declared |
+| iOS, native | Not declared |
 
-**390 tests**, `./gradlew build` green — 374 against fixtures checked into the repo,
+**821 tests**, `./gradlew build` green — 805 against fixtures checked into the repo,
 and 16 skipped. Regenerate that figure rather than trusting it:
 
 ```bash
@@ -127,7 +128,9 @@ different note therefore starts at the top — deliberately, and by passing
   its result, and the user decides. Obsidian's model, copied deliberately: it is
   the thing that removes the ambiguity of "am I typing Markdown or prose?"
   Toggle state lives *outside* the document, so toggling never marks a note
-  modified.
+  modified. A global plain mode (`EditorConfig(showMarkdownDecorations = false)`)
+  turns all Markdown styling off without touching that state — and without
+  modifying the note either.
 - **Bounded reparse.** An edit reparses one block, not the document. Asserted on a
   counter rather than a timing, because a counter is exact and a timing fails on a
   slow machine while the code is equally wrong. This is a correctness requirement,
@@ -396,18 +399,27 @@ Notes worth keeping, all of which cost time to find:
 
 ### Where this runs
 
-**Desktop JVM only, for now.**
+**Desktop JVM, plus web via wasmJs.**
 
-`jvm()` is the only declared target, and that is a decision rather than an omission.
-Cross-platform work is out of scope until the 1.0 release, at which point the
-target set becomes worth revisiting rather than something to drift into.
+`jvm()` and `wasmJs()` are the declared targets. The wasmJs target is a
+library plus a host: the same `commonMain` compiles, the same `commonTest`
+suite runs headless in Chrome (207 tests on `:fude` alone), and `:fude-web`
+is a web host with a `@JsExport` boundary and a demo page that renders
+decorated output in a real browser. What no person has done yet is type into
+that page by hand — caret feel, IME, clipboard and virtual keyboards there are
+unverified, which is why the status table says so. iOS and native remain
+undeclared, and that is still a decision rather than an omission:
+cross-platform work past the web is out of scope until the 1.0 release.
 
 Recorded here because it changes what is worth building. Each of these looks like an
 oversight without it:
 
-- **No iOS, web/Wasm or Android target.** Compose's own position is that
+- **No iOS or native target.** Compose's own position is that
   `BasicTextField` is least mature on iOS, so an iOS cut would be the least
-  attractive moment to discover problems.
+  attractive moment to discover problems. The web target carries the same
+  warning one level down: `BasicTextField` on a canvas has no browser-frame
+  verification here yet (IME, clipboard, virtual keyboards), which is why the
+  status table above says the frame is unverified there.
 - **`expect/actual` does not exist here.** Adding a target that needs it is a larger
   change than declaring the target, which is a good reason not to declare one.
 - **`docs/ime-verification.md` is a manual procedure on one machine with one CJK
@@ -425,6 +437,17 @@ oversight without it:
 ./gradlew build              # compile, test, architecture check
 ./gradlew :fude-demo:run     # the desktop host
 ```
+
+The web host works the same way, except the page is served rather than run:
+
+```bash
+./gradlew :fude-web:wasmJsBrowserDistribution
+python3 -m http.server 8931 --directory fude-web/build/dist/wasmJs/productionExecutable
+# open http://localhost:8931/index.html (add ?autotype for the headless harness)
+```
+
+See [`fude-web/README.md`](fude-web/README.md) for the JavaScript contract,
+what the demo page proves, and what still needs a person.
 
 The demo opens on a document containing every block kind, plus two things the
 library knows nothing about: `{{mentions}}` and `> [!note]` callouts, both

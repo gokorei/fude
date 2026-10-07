@@ -170,13 +170,17 @@ private fun App() {
     var status by remember { mutableStateOf("Ready.") }
 
     val state = remember { EditorState.of(loadDocument()) }
+    // Built once, not per recomposition: a fresh list (and fresh extension
+    // instances) every frame would read as a dialect change to anything keyed
+    // on identity further down.
+    val extensions = remember(mention) { listOf(mention, CalloutSyntax()) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         MarkdownEditor(
             state = state,
             modifier = Modifier.fillMaxSize().padding(16.dp),
             config = EditorConfig(textStyle = TextStyle(fontSize = 15.sp)),
-            syntaxExtensions = listOf(mention, CalloutSyntax()),
+            syntaxExtensions = extensions,
             onDecorationClick = { decoration ->
                 // Resolution is the host's job, deliberately — and it reads the
                 // editor's own text, not a cached copy. A cache updated from

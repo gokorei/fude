@@ -30,3 +30,4 @@ dependencyResolutionManagement {
 include(":fude-core")
 include(":fude")
 include(":fude-demo")
+include(":fude-web")

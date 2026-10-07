@@ -1,41 +1,41 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.detekt)
-    alias(libs.plugins.binary.compatibility.validator)
-    // Published because `:fude` declares it as an `api` dependency. Without a publication
-    // here, `:fude`'s POM points at a coordinate that does not exist and every consumer
-    // fails to resolve — which is the same failure as not publishing `:fude` at all, one
-    // level deeper and much harder to read.
-    // `maven-publish` with no `publishing { repositories { ... } }` block, for the
-    // reason given in `fude/build.gradle.kts`: publication is `publishToMavenLocal`
-    // only, and naming a remote is a decision rather than a fix.
-    `maven-publish`
+    alias(libs.plugins.compose)
+    alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
-    jvmToolchain(17)
-
-    jvm()
-
-    // wasmJs: the embeddable web target. A Compose canvas driven by this
-    // module's composables, loaded by any page — including a Phoenix one —
-    // as a script tag. `browser()` because the tests run headless in Chrome
-    // via Karma, which is also what CI provides; there is no DOM or browser
-    // API in the library itself, so no `kotlinx-browser` dependency.
     wasmJs {
         browser()
+        binaries.executable()
     }
 
-    applyDefaultHierarchyTemplate()
-
     sourceSets {
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
+        wasmJsMain.dependencies {
+            implementation(project(":fude"))
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.ui)
+            // document/window/location for the mount point and the demo harness.
+            // The version is the one Compose itself resolves against (see the
+            // dependency tree of `org.jetbrains.compose.ui:ui`), not a guess.
+            implementation(libs.kotlinx.browser)
         }
     }
 }
 
+// Flaky toolchain, recorded rather than worked around: `compileKotlinWasmJs`
+// intermittently dies with an instant `OutOfMemoryError` inside the
+// `@JsExport` checker (`WasmKlibExportingDeclaration` reading IR) on rebuilds,
+// while clean rebuilds of the same sources pass in seconds. Observed three
+// times in one session; `incremental = false` on the compile task did not
+// help, so it is not incremental state worth disabling — when it strikes,
+// `:fude-web:clean` and rebuild. A fresh-checkout CI never sees it, which is
+// why it is a comment here rather than a gate anywhere.
+
 // Detekt. The rule set is `detekt.yml` at the repository root, chosen rather than
+
 // defaulted -- a rule set nobody picked produces noise within a week, and a report full
 // of findings gets ignored, which is worse than no report because it looks like coverage.
 //
@@ -50,7 +50,7 @@ detekt {
 
     // Detekt's default source set is the JVM plugin's layout -- src/main/kotlin,
     // src/test/kotlin. This is a multiplatform project, whose sources live in
-    // src/commonMain/kotlin and src/jvmMain/kotlin, so the default set is *empty* and
+    // src/wasmJsMain/kotlin, so the default set is *empty* and
     // detekt passes having analysed nothing.
     //
     // That is the most dangerous way for a gate to be wrong: green, cheap, and
@@ -58,10 +58,7 @@ detekt {
     // that it failed, which is the only way to tell a working gate from an absent one.
     source.setFrom(
         files(
-            "src/commonMain/kotlin",
-            "src/jvmMain/kotlin",
-            "src/commonTest/kotlin",
-            "src/jvmTest/kotlin",
+            "src/wasmJsMain/kotlin",
         ),
     )
     // Unused code is the rule this codebase most wants. The review that produced the

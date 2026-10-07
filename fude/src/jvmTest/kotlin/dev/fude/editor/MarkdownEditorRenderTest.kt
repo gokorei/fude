@@ -928,4 +928,110 @@ class MarkdownEditorRenderTest {
         assertEquals(right, decorationAt(listOf(left, right), 4), "and the first offset of the right one")
     }
 
+    // ---------------------------------------------------------------------
+    // Plain mode: the library styles nothing.
+    //
+    // Asserted against `decorationSpans` rather than through a frame, for the
+    // same reason the source/rendered tests above are: the decision is a pure
+    // function of (parse, view, flag), and a frame cannot show a span that is
+    // absent. The frame tests below pin only that the mode renders, edits, and
+    // flips at runtime without touching the document.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun plainModeEmitsNoMarkdownSpans() {
+        val document = "# Head\n\nA **bold** and `code` paragraph with {{alice}}.\n\n- one\n- two\n"
+        val rendered = decorationSpans(parse(document), dev.fude.markdown.BlockViewState())
+        assertTrue(rendered.isNotEmpty(), "the fixture has something to lose")
+
+        assertEquals(
+            emptyList(),
+            decorationSpans(parse(document), dev.fude.markdown.BlockViewState(), showMarkdownDecorations = false),
+            "headings, emphasis, code, host syntax, lists: everything the library pass emits",
+        )
+    }
+
+    @Test
+    fun plainModeKeepsTheHostsOwnDecorations() {
+        val document = "Hello {{alice}} here."
+        val name = "{{alice}}"
+        val range = dev.fude.core.InlineRange(document.indexOf(name), document.indexOf(name) + name.length)
+        val host = listOf(Decoration(range, androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF00FF00))))
+
+        // The mention's own highlighting comes from the library pass (a
+        // HostInlineNode styled per block), so plain mode takes it — but the
+        // explicit list is the host's per-frame answer and survives exactly.
+        assertEquals(
+            host,
+            decorationSpans(parse(document), dev.fude.markdown.BlockViewState(), host, showMarkdownDecorations = false),
+        )
+    }
+
+    @Test
+    fun plainModeLeavesPerBlockTogglesAlone() {
+        // Plain mode reads the toggle state for nothing and writes nothing to
+        // it: flipping the flag must restore exactly the toggles the host had,
+        // which is only possible if it never touched them.
+        val document = "# Heading\n\nA paragraph with **bold**.\n"
+        val view = dev.fude.markdown.BlockViewState()
+        view.toggle(0)
+
+        assertEquals(
+            emptyList(),
+            decorationSpans(parse(document), view, showMarkdownDecorations = false),
+            "plain ignores the toggle rather than needing it cleared",
+        )
+        assertTrue(view.isSource(0), "and the toggle is still recorded")
+
+        val restored = decorationSpans(parse(document), view)
+        assertTrue(restored.isNotEmpty(), "flipping back brings styling back")
+        assertTrue(
+            restored.none { it.range.start == 0 },
+            "with the heading still undecorated by its own toggle, not by the flag",
+        )
+        assertTrue(
+            restored.any { document.substring(it.range.start, it.range.end).contains("bold") },
+            "and the paragraph's bold is decorated again",
+        )
+    }
+
+    @Test
+    fun aPlainEditorRendersAndStillEdits() {
+        val state = EditorState.of("# Title\n\nbody **bold**")
+        rule.setContent {
+            MarkdownEditor(state = state, config = EditorConfig(showMarkdownDecorations = false))
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(TAG_EDITOR).assertIsDisplayed()
+        rule.onNodeWithTag(TAG_EDITOR).assertTextContains("# Title", substring = true)
+
+        rule.onNodeWithTag(TAG_EDITOR).performTextInput("!")
+        rule.waitForIdle()
+
+        assertEquals("# Title\n\nbody **bold**!", state.text, "unstyled is not uneditable")
+    }
+
+    @Test
+    fun flippingPlainModeAtRuntimeKeepsTheDocument() {
+        var config by mutableStateOf(EditorConfig())
+        val state = EditorState.of("# Title\n\nbody **bold**")
+        rule.setContent {
+            MarkdownEditor(state = state, config = config)
+        }
+        rule.waitForIdle()
+
+        rule.runOnIdle { config = config.copy(showMarkdownDecorations = false) }
+        rule.waitForIdle()
+        assertEquals("# Title\n\nbody **bold**", state.text, "hiding styling rewrites nothing")
+
+        rule.onNodeWithTag(TAG_EDITOR).performTextInput("!")
+        rule.waitForIdle()
+        assertEquals("# Title\n\nbody **bold**!", state.text, "and the plain field still edits")
+
+        rule.runOnIdle { config = config.copy(showMarkdownDecorations = true) }
+        rule.waitForIdle()
+        assertEquals("# Title\n\nbody **bold**!", state.text, "nor does bringing it back")
+    }
+
 }

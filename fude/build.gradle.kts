@@ -29,9 +29,22 @@ kotlin {
 
     jvm()
 
-    // JVM-only target set: no android()/ios()/js()/wasmJs() targets are declared,
-    // so there is no android{} block, no google() repo need beyond Compose
-    // artifacts, and CI builds JVM only (see .github/workflows/ci.yml).
+    // wasmJs: the embeddable web target — see the comment in
+    // `:fude-core` for what it is and is not. The `commonMain` Compose
+    // dependencies above resolve to their wasmJs klibs per target; the
+    // JVM-only test dependencies below stay in `jvmTest`, because neither
+    // `org.jetbrains:markdown` nor the Skiko AWT runtimes exist outside it.
+    wasmJs {
+        browser()
+        // Required for Compose UI tests: without an executable binary there is
+        // no webpack bundle, so the Skiko runtime the UI tests need cannot
+        // load (CMP-4906). Harmless for a library — it only adds a runnable JS
+        // bundle alongside the klib, which is what a web host loads anyway.
+        binaries.executable()
+    }
+
+    // JVM-only no longer: the target set is JVM plus web. Still no
+    // android()/ios() targets (see the toolchain notes in the README).
 
     applyDefaultHierarchyTemplate()
 
@@ -81,7 +94,7 @@ kotlin {
 //
 // Configured here rather than in the root build script because the root names no detekt
 // types and has none on its classpath. detekt.yml is shared; this block is not, and
-// there are three copies of it, which is a fair trade for the root compiling.
+// there are four copies of it, which is a fair trade for the root compiling.
 detekt {
     buildUponDefaultConfig = true
     allRules = false

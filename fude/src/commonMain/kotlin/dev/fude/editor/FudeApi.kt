@@ -194,4 +194,20 @@ data class EditorConfig(
      * with a hint would misrepresent what they did.
      */
     val placeholder: String? = null,
+
+    /**
+     * Whether the library styles Markdown at all.
+     *
+     * On by default. Turned off, the document is drawn as plain text in
+     * [textStyle] — no heading sizes, no emphasis, no code or link styling —
+     * which is the mode for editing Markdown as text rather than reading it
+     * rendered. Per-block source/rendered toggles are ignored while it is off
+     * but left untouched, so flipping it back restores exactly what the host
+     * had; like a toggle, it never marks the document modified.
+     *
+     * Host [Decoration]s are unaffected: they are the host's own per-frame
+     * answer about its own syntax, applied last, and they keep their click
+     * behavior.
+     */
+    val showMarkdownDecorations: Boolean = true,
 )

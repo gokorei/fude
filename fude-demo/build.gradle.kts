@@ -55,7 +55,7 @@ tasks.withType<JavaExec>().configureEach {
 //
 // Configured here rather than in the root build script because the root names no detekt
 // types and has none on its classpath. detekt.yml is shared; this block is not, and
-// there are three copies of it, which is a fair trade for the root compiling.
+// there are four copies of it, which is a fair trade for the root compiling.
 detekt {
     buildUponDefaultConfig = true
     allRules = false

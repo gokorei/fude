@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fude Web Demo</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, sans-serif; }
+    header { padding: 12px 16px; border-bottom: 1px solid #ddd; }
+    header h1 { font-size: 16px; margin: 0 0 4px 0; }
+    header p { font-size: 13px; color: #555; margin: 0; }
+    main { display: flex; gap: 16px; padding: 16px; box-sizing: border-box; height: calc(100% - 73px); }
+    section { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    section h2 { font-size: 13px; margin: 0 0 8px 0; color: #333; }
+    .editor { flex: 1; border: 1px solid #ccc; min-height: 0; }
+    .status { font-size: 12px; color: #666; margin-top: 6px; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Fude Web Demo</h1>
+    <p>Left: mounted from Kotlin. Right: mounted from JavaScript through the exported boundary — the Phoenix path.</p>
+  </header>
+  <main>
+    <section>
+      <h2>Kotlin-mounted</h2>
+      <div class="editor" id="fude-demo-kotlin"></div>
+      <div class="status" id="fude-demo-kotlin-status"></div>
+    </section>
+    <section>
+      <h2>JavaScript-mounted</h2>
+      <div class="editor" id="fude-demo-js"></div>
+      <div class="status" id="fude-demo-js-status"></div>
+    </section>
+  </main>
+  <script src="fude-web.js"></script>
+  <script>
+    // The bundle initialises asynchronously: `window["fude-web"]` is a promise
+    // for the boundary, and awaiting it is what orders this script after the
+    // export bindings. Any host page implements this same `.then`.
+    window["fude-web"].then((Fude) => {
+      const doc = "# From JavaScript\n\nMounted through `fudeMount` with no Kotlin involvement. Type **bold** here.\n";
+      const editor = Fude.fudeMount("fude-demo-js", doc, false, (text) => {
+        document.getElementById("fude-demo-js-status").textContent = text.length + " characters";
+      });
+      document.getElementById("fude-demo-js-status").textContent = Fude.fudeGetText(editor).length + " characters";
+
+      // Headless harness, not a feature: `?autotype` drives one edit over the
+      // boundary and reports the result in the title, so a headless browser
+      // proves the round trip without fingers. Real keystrokes need a person.
+      if (location.search.includes("autotype")) {
+        Fude.fudeSetText(editor, doc + "\ntyped!\n");
+        document.title = "FUDE_AUTOTYPE_OK len=" + Fude.fudeGetText(editor).length;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -12,10 +12,9 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -156,6 +155,27 @@ import dev.fude.syntax.SyntaxExtension
  * to whoever has to remember it, and the composable cannot remember it on the host's
  * behalf.
  *
+ * **Plain mode: no Markdown styling at all.**
+ *
+ * [EditorConfig.showMarkdownDecorations] turns the library's own styling off for
+ * the whole document — headings, emphasis, code, links, quotes, lists, tables:
+ * everything [decorationSpans] would otherwise emit. What is left is the source
+ * text in the host's [EditorConfig.textStyle], which is the mode for editing
+ * Markdown as text rather than reading it rendered.
+ *
+ * This is the document-wide version of toggling every block to source, without
+ * touching the per-block state: [view] is neither read for this decision nor
+ * modified by it, so flipping the flag off and on again restores exactly the
+ * toggles the host had. It also never marks the document modified — like a
+ * toggle, it changes what is drawn, not what is there.
+ *
+ * Host [decorations] are unaffected. They are passed per frame and applied last,
+ * so they are the host's own answer about its own syntax rather than the
+ * library's — and they keep their click behavior, which plain mode must not
+ * remove. (Host *syntax* recognised through a `SyntaxExtension` is styled by
+ * the library's own pass, so it hides with everything else; only the explicit
+ * list survives.)
+ *
  * **The host owns the document-swap lifecycle.** Keys are block start offsets, so every
  * one of them is stale the moment a different note is loaded. An *edit* is handled here:
  * [ToggleCoordinator.afterEdit] shifts the keys and drops any that no longer name a
@@ -213,11 +233,24 @@ fun MarkdownEditor(
     // read-only field passes its own — the same discipline a `NavHost` applies to
     // its back stack. It also means `canUndo` is answerable by a host, which it was
     // not while the stack was private to this function.
-    // Keyed on the extensions, not remembered once: a parser built without them can
-    // never produce a host-defined block, so a host that registers a dialect would
-    // get inline syntax it recognises and block syntax it silently does not.
-    val parser = remember(syntaxExtensions) { IncrementalMarkdownParser(syntaxExtensions) }
-    var parsed by remember(syntaxExtensions) { mutableStateOf(parser.parse(state.text)) }
+    // Keyed on the dialect, not on the list instance: a parser built without the
+    // host's extensions can never produce a host-defined block, so a genuinely
+    // different dialect rebuilds the parser — but a host rebuilding `listOf(...)`
+    // every recomposition must not. New instances of the same dialect classes with
+    // the same ids reuse the parser, so typing never pays a full reparse for an
+    // allocation. (Swapping implementations under an identical class+id keeps the
+    // old parser; a dialect change that reuses both is a new-dialect event the
+    // key cannot see, and the host should change the id with it.)
+    val extensionKey = syntaxExtensions.map { it::class to it.id }
+    val parser = remember(extensionKey) { IncrementalMarkdownParser(syntaxExtensions) }
+    // The parse is layout input, not composition input. It changes on every
+    // keystroke, so reading it as a `by` delegate during composition would
+    // recompose this whole function — recreating the transformation and the
+    // gesture detector below — per character, which is the flicker. A State
+    // holder read only at layout/gesture/event time updates the screen without
+    // recomposing it; composition subscribes to the toggle snapshot instead,
+    // which moves rarely.
+    val parsedHolder = remember(extensionKey) { mutableStateOf(parser.parse(state.text)) }
 
     // One effect does the whole per-keystroke pipeline, in order:
     //   1. mirror the field's text and selection into the pure model
@@ -254,7 +287,7 @@ fun MarkdownEditor(
             onChange(current)
         }
 
-        val previous = parsed
+        val previous = parsedHolder.value
         if (previous.text != current) {
             // The recovered gesture edit spans what the user actually changed. A
             // synthetic empty insert collapses to a point, so the reusable-tail
@@ -269,7 +302,7 @@ fun MarkdownEditor(
             }
             if (reparseEdit != null) {
                 val next = parser.reparse(current, reparseEdit)
-                parsed = next
+                parsedHolder.value = next
                 val range = reparseEdit.affectedRange
                 val editDelta = reparseEdit.replacement.length - (range.end - range.start)
                 ToggleCoordinator.afterEdit(view, range.start, editDelta, ToggleCoordinator.blockStarts(next.blocks))
@@ -318,7 +351,34 @@ fun MarkdownEditor(
     // Reporting `false` for an un-outdentable line lets the platform move focus,
     // which is what Shift-Tab on prose should do anyway.
     val handleOutdentKey: (Boolean) -> Boolean = { shift ->
-        applyOutdentStep(parsed, textState, shift)
+        // Read at event time, not composition time: the parse moves every
+        // keystroke and must not recompose the field to reach this handler.
+        applyOutdentStep(parsedHolder.value, textState, shift)
+    }
+
+    // Which blocks show source, as a value. Read during composition so a toggle
+    // recomposes (rare); the parse itself stays out of composition (every
+    // keystroke) and is read from its holder at layout time instead.
+    val toggleSnapshot = view.sourceBlocks()
+    // Plain mode, hoisted so every consumer below reads one value. A field on
+    // the config rather than a parameter: it is display state the host holds
+    // next to `readOnly` and `maxLines`, flipped with `config.copy(...)`.
+    val showMarkdownDecorations = config.showMarkdownDecorations
+    // Latest host values without recreating the transformation below when the
+    // host rebuilds its lists every recomposition. New list instance, same
+    // content: no reason to touch the field.
+    val decorationsHolder = rememberUpdatedState(decorations)
+    val decorationClickHolder = rememberUpdatedState(onDecorationClick)
+    // One transformation for the life of the toggle set and the plain-mode flag,
+    // not one per frame. Recreating `OutputTransformation` every recomposition
+    // re-applies decoration over the whole document per character; this one reads
+    // the latest parse at layout time, so keystrokes redecorate without rebuilding
+    // it. The flag is a key rather than a holder read because flipping it must
+    // redecorate even when the text did not move.
+    val decorationTransformation = remember(toggleSnapshot, showMarkdownDecorations) {
+        OutputTransformation {
+            applyDecoration(this, parsedHolder.value, view, decorationsHolder.value, showMarkdownDecorations)
+        }
     }
 
     // Single Box, not Column > Box: one child needs one layout, not two nested
@@ -363,7 +423,12 @@ fun MarkdownEditor(
                         if (onDecorationClick == null && decorations.none { it.onClick != null }) {
                             Modifier
                         } else {
-                            Modifier.pointerInput(onDecorationClick, decorations, parsed.text) {
+                            // Keyed on the toggle set and the plain-mode flag, not on
+                            // the parse or the host's lists: restarting this
+                            // detector every keystroke drops the gesture in flight
+                            // and the tap never reports. Latest values come from
+                            // holders at gesture time.
+                            Modifier.pointerInput(toggleSnapshot, showMarkdownDecorations) {
                                 // `requireUnconsumed = false` because the text field
                                 // consumes the first down itself to place the caret. A
                                 // tap is still a tap, and we want to hear about it --
@@ -376,10 +441,10 @@ fun MarkdownEditor(
                                     // The caret is where Compose put it for this tap.
                                     // See the KDoc on why this is not a hit-test.
                                     val offset = textState.selection.start
-                                    val hit = decorationAt(decorationSpans(parsed, view, decorations), offset)
+                                    val hit = decorationAt(decorationSpans(parsedHolder.value, view, decorationsHolder.value, showMarkdownDecorations), offset)
                                     val click = hit?.onClick
                                     if (click != null) click()
-                                    else if (hit != null) onDecorationClick?.invoke(hit)
+                                    else if (hit != null) decorationClickHolder.value?.invoke(hit)
                                 }
                             }
                         },
@@ -425,12 +490,12 @@ fun MarkdownEditor(
                         maxHeightInLines = config.maxLines,
                     )
                 },
-                // Decoration is recomputed here, per frame, from the current parse. The
+                // Decoration is reapplied here, per frame, from the current parse. The
                 // ranges come from the block tree, so a reparse and a decoration pass
-                // cannot disagree about where anything is.
-                outputTransformation = OutputTransformation {
-                    applyDecoration(this, parsed, view, decorations)
-                },
+                // cannot disagree about where anything is. The transformation object
+                // itself is remembered above and reads the latest parse at layout
+                // time, so this parameter stays stable across keystrokes.
+                outputTransformation = decorationTransformation,
             )
     }
 }
@@ -460,11 +525,11 @@ private val PLACEHOLDER_COLOR: Color = Color(0xFF9A9A9A)
 /**
  * Every span the current parse calls for, in the order they must be applied.
  *
- * **Pure in (parse, view).** The same two arguments always produce the same spans,
- * with no reference to a buffer, a frame or a font. That is what "rendering is a
- * pure function of state" has to mean if it is to mean anything, and it is what
- * makes a decoration bug reproducible in a unit test instead of only as a screenshot
- * somebody has to notice.
+ * **Pure in (parse, view, showMarkdownDecorations).** The same arguments always
+ * produce the same spans, with no reference to a buffer, a frame or a font. That
+ * is what "rendering is a pure function of state" has to mean if it is to mean
+ * anything, and it is what makes a decoration bug reproducible in a unit test
+ * instead of only as a screenshot somebody has to notice.
  *
  * Order matters and is the traversal order, because Compose resolves overlapping
  * spans by the order they were added. Collecting them into a list preserves it
@@ -475,13 +540,19 @@ internal fun decorationSpans(
     parsed: ParsedDocument,
     view: BlockViewState,
     host: List<Decoration> = emptyList(),
+    showMarkdownDecorations: Boolean = true,
 ): List<Decoration> {
     val spans = mutableListOf<Decoration>()
-    for (block in parsed.blocks) {
-        // A block showing source is deliberately left undecorated: the user is
-        // editing Markdown and wants to see it as written.
-        if (view.modeOf(block.range.start) == RenderMode.SOURCE) continue
-        collectBlockSpans(spans, block, parsed.text)
+    // Plain mode: the library styles nothing. The host's own decorations below
+    // still apply — they are the host's answer about its own syntax, not
+    // Markdown's, and they carry click behavior plain mode must not remove.
+    if (showMarkdownDecorations) {
+        for (block in parsed.blocks) {
+            // A block showing source is deliberately left undecorated: the user is
+            // editing Markdown and wants to see it as written.
+            if (view.modeOf(block.range.start) == RenderMode.SOURCE) continue
+            collectBlockSpans(spans, block, parsed.text)
+        }
     }
 
     // Host inline syntax deliberately gets no pass of its own.
@@ -746,10 +817,11 @@ private fun applyDecoration(
     parsed: ParsedDocument,
     view: BlockViewState,
     host: List<Decoration>,
+    showMarkdownDecorations: Boolean,
 ) {
     val text: String = buffer.originalText.toString()
     if (parsed.text.length != text.length || parsed.text != text) return
-    for (span in decorationSpans(parsed, view, host)) {
+    for (span in decorationSpans(parsed, view, host, showMarkdownDecorations)) {
         addStyle(buffer, span.range, span.spanStyle)
     }
 }
